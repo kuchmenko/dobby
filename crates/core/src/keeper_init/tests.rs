@@ -65,10 +65,27 @@ fn applies_expected_permissions() {
     assert_eq!(mode_of(&tmp.path().join("tls/host.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("secrets/bootstrap_token")), 0o600);
 
-    // Dir modes — tls/ is world-traversable (so non-root can read
-    // the public certs inside), secrets/ is owner-only.
+    // Dir modes — root, tls/ world-traversable so non-root can
+    // reach the public certs; secrets/ owner-only.
+    // Note: `req(tmp.path())` reuses the pre-existing tempdir as
+    // `dir`, so root-dir-mode normalisation doesn't kick in in
+    // this test — see `normalises_root_dir_mode_when_creating`.
     assert_eq!(mode_of(&tmp.path().join("tls")), 0o755);
     assert_eq!(mode_of(&tmp.path().join("secrets")), 0o700);
+}
+
+#[test]
+fn normalises_root_dir_mode_when_creating() {
+    // When `ensure_target_dir` creates `dir` itself, its mode was
+    // previously at umask's mercy. Now it's explicitly 0o755 so
+    // non-root can traverse into tls/ regardless of the invoking
+    // process's umask.
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("new-dobby-state");
+    let mut r = req(&target);
+    r.force = false;
+    init(&r).unwrap();
+    assert_eq!(mode_of(&target), 0o755);
 }
 
 #[test]

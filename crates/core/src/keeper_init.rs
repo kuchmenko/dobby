@@ -374,6 +374,22 @@ fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
                 source,
             })?;
 
+            // Normalise the newly-created dir's own mode: `create_dir_all`
+            // applies `umask(2)`, so under `umask 077` the final bits
+            // would be `0o700` and non-root traversal into `tls/` (even
+            // though it's chmodded `0o755` later) would be blocked at
+            // the parent. Explicit chmod here guarantees the operator
+            // sees exactly `0o755` regardless of the invoking umask.
+            // Only the leaf `dir` is normalised — intermediate mkdir-p
+            // ancestors belong to the operator, we don't touch them.
+            fs::set_permissions(dir, fs::Permissions::from_mode(0o755)).map_err(|source| {
+                InitError::Io {
+                    op: "chmod 0755",
+                    path: dir.to_path_buf(),
+                    source,
+                }
+            })?;
+
             // Fsync the parent of each newly-created directory so
             // its dir-entry is on stable storage. Order doesn't
             // matter for correctness (each fsync is independent),

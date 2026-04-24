@@ -24,6 +24,23 @@ fn keeper_endpoint(ip: IpAddr) -> SocketAddr {
     SocketAddr::new(ip, KEEPER_GRPC_PORT)
 }
 
+/// Family-aware DNS default. Both are Cloudflare's public resolver —
+/// same operator behaviour, compatible with the keeper's family so
+/// `validate_network_families` doesn't reject the implicit default.
+fn default_dns_upstream_for(keeper_ip: IpAddr) -> IpAddr {
+    if keeper_ip.is_ipv4() {
+        // 1.1.1.1
+        IpAddr::V4(std::net::Ipv4Addr::new(1, 1, 1, 1))
+    } else {
+        // 2606:4700:4700::1111 — Cloudflare DNS over IPv6.
+        IpAddr::V6(
+            "2606:4700:4700::1111"
+                .parse::<std::net::Ipv6Addr>()
+                .unwrap(),
+        )
+    }
+}
+
 /// `dobby keeper <sub>` subcommands.
 #[derive(Debug, Subcommand)]
 pub enum KeeperCommand {
@@ -89,9 +106,12 @@ pub struct InitArgs {
     #[arg(long, default_value = "vmbr0")]
     pub bridge: String,
 
-    /// Upstream DNS for non-`.dobby` queries.
-    #[arg(long, value_name = "IP", default_value = "1.1.1.1")]
-    pub dns_upstream: IpAddr,
+    /// Upstream DNS for non-`.dobby` queries. When omitted, defaults
+    /// to a DNS resolver in the same address family as `--keeper-ip`
+    /// (`1.1.1.1` for IPv4, `2606:4700:4700::1111` for IPv6 —
+    /// Cloudflare's public resolver in both cases).
+    #[arg(long, value_name = "IP")]
+    pub dns_upstream: Option<IpAddr>,
 
     /// Overwrite an existing non-empty `--dir`.
     #[arg(long)]
@@ -160,11 +180,15 @@ pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
 }
 
 fn run_init(args: InitArgs) -> anyhow::Result<()> {
+    let dns_upstream = args
+        .dns_upstream
+        .unwrap_or_else(|| default_dns_upstream_for(args.keeper_ip));
+
     let req = dobby_core::keeper_init::Request {
         dir: args.dir.clone(),
         keeper_ip: args.keeper_ip,
         gateway: args.gateway,
-        dns_upstream: args.dns_upstream,
+        dns_upstream,
         subnet: args.subnet,
         static_range: args.static_range,
         bridge: args.bridge,
@@ -231,5 +255,20 @@ mod tests {
     fn ipv6_loopback_endpoint() {
         let ep = keeper_endpoint(IpAddr::V6(Ipv6Addr::LOCALHOST));
         assert_eq!(ep.to_string(), "[::1]:8443");
+    }
+
+    #[test]
+    fn dns_default_is_v4_for_v4_keeper() {
+        let kip = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 50));
+        assert_eq!(default_dns_upstream_for(kip).to_string(), "1.1.1.1");
+    }
+
+    #[test]
+    fn dns_default_is_v6_for_v6_keeper() {
+        let kip = IpAddr::V6("fd00::50".parse::<Ipv6Addr>().unwrap());
+        assert_eq!(
+            default_dns_upstream_for(kip).to_string(),
+            "2606:4700:4700::1111"
+        );
     }
 }
