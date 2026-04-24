@@ -1,0 +1,86 @@
+[app]
+name = "mm-eh"
+repo = "espumisan/mm-eh"
+trigger = "branch:main"                # deploy on every push to main
+interval = "5m"                        # poll interval (default: 5m)
+
+[container]
+template = "debian-12"
+cores = 4
+memory = 2048
+disk = 20
+
+[environment]
+DATABASE_URL = "postgres://mmeh:${DB_PASSWORD}@postgres.dobby:5432/mmeh"
+API_KEY = "${INGEST_API_KEY}"
+RUST_LOG = "info"
+
+# ── Services: only app logic ──────────────────────────
+
+[services.db]
+type = "external"
+host = "postgres.dobby"
+port = 5432
+
+[services.prometheus]
+type = "container"
+image = "prom/prometheus:latest"
+ports = ["9090:9090"]
+volumes = ["/etc/mm-eh/prometheus.yml:/etc/prometheus/prometheus.yml"]
+memory = 256
+
+[services.grafana]
+type = "container"
+image = "grafana/grafana:latest"
+ports = ["3001:3000"]
+volumes = ["/data/grafana:/var/lib/grafana"]
+memory = 256
+depends = ["prometheus"]
+
+[services.indexer]
+ports = [9100]
+depends = ["db"]
+env_from = ["DATABASE_URL", "API_KEY", "RUST_LOG"]   # needs all three
+
+[services.paper]
+ports = [9101]
+depends = ["indexer"]
+memory = 1024
+env_from = ["DATABASE_URL", "RUST_LOG"]              # API_KEY stays out
+
+[services.explorer]
+ports = [3000, 9102]
+depends = ["db"]
+env_from = ["DATABASE_URL", "RUST_LOG"]
+
+[services.data-api]
+ports = [9103, 8080]
+depends = ["db"]
+env_from = ["DATABASE_URL", "RUST_LOG"]
+env = { JWT_SECRET = "${JWT_SECRET}" }               # service-specific literal
+
+# ── Proxy: explicit domain mapping ───────────────────
+# Only services listed here get reverse proxy routes.
+# explorer.mm-eh.dobby:80 → LXC_IP:3000
+
+[proxy.explorer]
+domain = "explorer"
+port = 3000
+
+[proxy.data-api]
+domain = "api"
+port = 8080
+
+# ── Health: overrides only ───────────────────────────
+# Default (no entry): process alive check via cgroup.
+# Resource metrics (CPU, memory, IO, PIDs) collected
+# automatically from cgroup files — no config needed.
+
+[health.explorer]
+http = "/health"
+port = 9102
+interval = "15s"
+
+[health.data-api]
+http = "/health"
+port = 9103

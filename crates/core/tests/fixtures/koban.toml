@@ -1,0 +1,31 @@
+[app]
+name = "koban"
+repo = "kuchmenko/koban"
+trigger = "release"                    # deploy on new GitHub Release (default)
+# interval = "5m"                      # poll interval (default)
+
+[container]
+template = "debian-12"
+cores = 2
+memory = 512
+disk = 10
+
+[environment]
+RUST_LOG = "info"
+DATABASE_URL = "postgres://koban:${DB_PASSWORD}@postgres.dobby/koban"
+
+[services.db]
+type = "external"
+host = "postgres.dobby"
+port = 5432
+
+[services.koban]
+ports = [8080]
+depends = ["db"]
+env_from = ["DATABASE_URL", "RUST_LOG"]
+
+[proxy.koban]
+domain = "koban"
+port = 8080
+
+# No [health] section — default: process alive + cgroup metrics
