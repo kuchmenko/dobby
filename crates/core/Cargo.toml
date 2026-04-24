@@ -14,6 +14,13 @@ toml = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 zeroize = { workspace = true }
+rcgen = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+const-hex = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
