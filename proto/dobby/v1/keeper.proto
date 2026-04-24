@@ -22,7 +22,7 @@ service KeeperService {
   rpc Pair(PairRequest) returns (PairResponse);
 
   // Cheap liveness probe used by `dobby status` and CI.
-  rpc HealthCheck(KeeperHealthCheckRequest) returns (KeeperHealthCheckResponse);
+  rpc HealthCheck(KeeperServiceHealthCheckRequest) returns (KeeperServiceHealthCheckResponse);
 }
 
 message PairRequest {
@@ -38,9 +38,9 @@ message PairResponse {
   bytes tls_fingerprint_sha256 = 2;
 }
 
-message KeeperHealthCheckRequest {}
+message KeeperServiceHealthCheckRequest {}
 
-message KeeperHealthCheckResponse {
+message KeeperServiceHealthCheckResponse {
   Version keeper_version = 1;
   Status status = 2;
 }

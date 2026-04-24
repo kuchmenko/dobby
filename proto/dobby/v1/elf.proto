@@ -20,7 +20,7 @@ service ElfService {
   rpc Hello(HelloRequest) returns (HelloResponse);
 
   // Cheap liveness probe — called by Keeper from `dobby status` / watchdog.
-  rpc HealthCheck(ElfHealthCheckRequest) returns (ElfHealthCheckResponse);
+  rpc HealthCheck(ElfServiceHealthCheckRequest) returns (ElfServiceHealthCheckResponse);
 }
 
 message HelloRequest {
@@ -34,9 +34,9 @@ message HelloResponse {
   string observed_ip = 2;
 }
 
-message ElfHealthCheckRequest {}
+message ElfServiceHealthCheckRequest {}
 
-message ElfHealthCheckResponse {
+message ElfServiceHealthCheckResponse {
   Version elf_version = 1;
   Status status = 2;
 }
