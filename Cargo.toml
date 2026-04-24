@@ -79,6 +79,21 @@ prost = "0.14"
 # memory hygiene (secrets) — used by `core` and bound material in keeper/elf later
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
+# TLS materials — rcgen generates the Keeper CA + host cert
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "aws_lc_rs"] }
+
+# crypto-random for bootstrap tokens; explicit CSPRNG via OsRng
+rand = "0.9"
+
+# digest for TLS fingerprint display
+sha2 = "0.11"
+
+# hex encoding (no deps beyond std; const-hex is small + fast)
+const-hex = "1"
+
+# temp-dir for integration tests; each crate opts in via [dev-dependencies]
+tempfile = "3"
+
 [workspace.lints.rust]
 unsafe_code = "warn"
 missing_debug_implementations = "warn"

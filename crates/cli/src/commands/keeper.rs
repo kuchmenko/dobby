@@ -1,6 +1,9 @@
 //! `dobby keeper ...` — Keeper daemon lifecycle, bootstrap, backup, restore,
 //! fingerprint display, key rotation. See issue #1 § CLI commands → Setup.
 
+use std::net::IpAddr;
+use std::path::PathBuf;
+
 use clap::{Args, Subcommand};
 
 use super::not_yet;
@@ -8,9 +11,10 @@ use super::not_yet;
 /// `dobby keeper <sub>` subcommands.
 #[derive(Debug, Subcommand)]
 pub enum KeeperCommand {
-    /// Generate TLS CA + host cert, age keypair, bootstrap token; write
-    /// skeleton `keeper.toml`; prompt for Proxmox API token, GitHub OAuth
-    /// Device Flow, and backup passphrase. Runs once per Keeper LXC.
+    /// Generate TLS CA + host cert + bootstrap token; write skeleton
+    /// `keeper.toml`. Runs once per Keeper LXC. Interactive prompts
+    /// for Proxmox token / GitHub Device Flow / backup passphrase
+    /// land in subsequent PRs.
     Init(InitArgs),
 
     /// Start the Keeper daemon (tonic gRPC server + mDNS + embedded DNS).
@@ -43,9 +47,39 @@ pub enum KeeperCommand {
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
-    /// Assume 'yes' to interactive prompts (non-interactive provisioning).
+    /// Target directory for Keeper state.
+    #[arg(long, default_value = "/etc/dobby")]
+    pub dir: PathBuf,
+
+    /// Keeper LXC's own IP on `--bridge` (e.g. 10.0.0.50).
+    /// Written into `keeper.toml` and embedded as a SAN on the TLS host cert.
+    #[arg(long, value_name = "IP")]
+    pub keeper_ip: IpAddr,
+
+    /// LAN gateway (e.g. 10.0.0.1).
+    #[arg(long, value_name = "IP")]
+    pub gateway: IpAddr,
+
+    /// LAN subnet in CIDR form.
+    #[arg(long, value_name = "CIDR", default_value = "10.0.0.0/24")]
+    pub subnet: String,
+
+    /// Range of IPs allocated to managed LXCs (`<first>-<last>`).
+    /// Must be outside the DHCP pool and outside `--keeper-ip`.
+    #[arg(long, value_name = "RANGE", default_value = "10.0.0.200-10.0.0.250")]
+    pub static_range: String,
+
+    /// Proxmox bridge name.
+    #[arg(long, default_value = "vmbr0")]
+    pub bridge: String,
+
+    /// Upstream DNS for non-`.dobby` queries.
+    #[arg(long, value_name = "IP", default_value = "1.1.1.1")]
+    pub dns_upstream: IpAddr,
+
+    /// Overwrite an existing non-empty `--dir`.
     #[arg(long)]
-    pub yes: bool,
+    pub force: bool,
 }
 
 #[derive(Debug, Args)]
@@ -93,7 +127,7 @@ pub struct RebootstrapArgs {
 
 pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
     match cmd {
-        KeeperCommand::Init(_) => Err(not_yet("Phase 1", "dobby keeper init")),
+        KeeperCommand::Init(args) => run_init(args),
         KeeperCommand::Start(_) => Err(not_yet("Phase 1", "dobby keeper start")),
         KeeperCommand::ShowFingerprint => Err(not_yet("Phase 1", "dobby keeper show-fingerprint")),
         KeeperCommand::SetProxmoxToken => Err(not_yet("Phase 1", "dobby keeper set-proxmox-token")),
@@ -107,4 +141,52 @@ pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
             Err(not_yet("Phase 4", "dobby keeper rotate-secrets-key"))
         }
     }
+}
+
+fn run_init(args: InitArgs) -> anyhow::Result<()> {
+    let req = dobby_core::keeper_init::Request {
+        dir: args.dir.clone(),
+        keeper_ip: args.keeper_ip,
+        gateway: args.gateway,
+        dns_upstream: args.dns_upstream,
+        subnet: args.subnet,
+        static_range: args.static_range,
+        bridge: args.bridge,
+        force: args.force,
+    };
+
+    let outcome = dobby_core::keeper_init::init(&req)?;
+
+    let dir = args.dir.display();
+    println!("✓ TLS CA + host cert       → {dir}/tls/{{ca,host}}.{{crt,key}}");
+    println!("✓ Bootstrap token          → {dir}/secrets/bootstrap_token");
+    println!("✓ keeper.toml skeleton     → {dir}/keeper.toml");
+    println!();
+    println!(
+        "TLS fingerprint (sha256):  {}",
+        outcome.tls_fingerprint_sha256
+    );
+    println!("Bootstrap token:           {}", &*outcome.bootstrap_token);
+    println!();
+    println!("Pair from your workstation:");
+    println!(
+        "  dobby pair {}:8443 --fingerprint {} --token {}",
+        args.keeper_ip, outcome.tls_fingerprint_sha256, &*outcome.bootstrap_token,
+    );
+    println!();
+    println!("Next, provision the Proxmox API token on the PVE host");
+    println!("(the Keeper LXC talks to the Proxmox API via this token, never `pct`):");
+    println!("  pveum role add DobbyManager --privs \"VM.Allocate VM.Audit \\");
+    println!("      VM.Config.CPU VM.Config.Disk VM.Config.Memory \\");
+    println!("      VM.Config.Network VM.Config.Options \\");
+    println!("      VM.PowerMgmt Sys.Audit Datastore.AllocateSpace\"");
+    println!("  pvesh create /pools --poolid dobby");
+    println!("  pveum user add pve-dobby@pve");
+    println!("  pveum aclmod /pool/dobby --user pve-dobby@pve --role DobbyManager");
+    println!("  pveum user token add pve-dobby@pve dobby --privsep 0");
+    println!();
+    println!("Copy the resulting secret and run `dobby keeper set-proxmox-token`");
+    println!("(next PR). Then: systemctl enable --now dobby-keeper");
+
+    Ok(())
 }
