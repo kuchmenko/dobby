@@ -167,3 +167,54 @@ fn io_error_reports_path_in_message() {
     let msg = err.to_string();
     assert!(msg.contains("/does/not/exist/dobby.toml"), "msg = {msg}");
 }
+
+#[test]
+fn app_defaults_fill_trigger_and_interval_when_absent() {
+    let src = r#"
+        [app]
+        name = "x"
+        repo = "a/b"
+    "#;
+    let mut m = parse_str(src, p()).unwrap();
+    // Raw parse preserves absence.
+    assert!(m.app.trigger.is_none());
+    assert!(m.app.interval.is_none());
+    // Defaults materialise on apply_defaults.
+    m.apply_defaults();
+    assert_eq!(m.app.trigger.as_deref(), Some(DEFAULT_TRIGGER));
+    assert_eq!(m.app.interval.as_deref(), Some(DEFAULT_INTERVAL));
+    // And the constants match the documented values.
+    assert_eq!(DEFAULT_TRIGGER, "release");
+    assert_eq!(DEFAULT_INTERVAL, "5m");
+}
+
+#[test]
+fn app_defaults_preserve_explicit_values() {
+    let src = r#"
+        [app]
+        name = "x"
+        repo = "a/b"
+        trigger = "branch:main"
+        interval = "30s"
+    "#;
+    let mut m = parse_str(src, p()).unwrap();
+    m.apply_defaults();
+    assert_eq!(m.app.trigger.as_deref(), Some("branch:main"));
+    assert_eq!(m.app.interval.as_deref(), Some("30s"));
+}
+
+#[test]
+fn app_defaults_materialise_only_missing_field() {
+    // trigger present, interval absent — interval gets default,
+    // trigger stays exactly as written.
+    let src = r#"
+        [app]
+        name = "x"
+        repo = "a/b"
+        trigger = "branch:dev"
+    "#;
+    let mut m = parse_str(src, p()).unwrap();
+    m.apply_defaults();
+    assert_eq!(m.app.trigger.as_deref(), Some("branch:dev"));
+    assert_eq!(m.app.interval.as_deref(), Some(DEFAULT_INTERVAL));
+}

@@ -313,18 +313,38 @@ pub struct SandboxEntry {
 
 // ── smart defaults ───────────────────────────────────────────────────────
 
+/// Default watcher trigger applied when `[app].trigger` is absent.
+pub const DEFAULT_TRIGGER: &str = "release";
+
+/// Default watcher poll interval applied when `[app].interval` is absent.
+pub const DEFAULT_INTERVAL: &str = "5m";
+
 impl Manifest {
     /// Apply convention-over-configuration defaults in-place.
     ///
     /// Called by consumers that want post-parse values ready for
-    /// systemd-unit generation / DNS registration / etc. Keeps the raw
-    /// parse tree honest (the result of `parse_str` only reflects what
-    /// was literally in the TOML).
+    /// systemd-unit generation / DNS registration / watcher setup.
+    /// Keeps the raw parse tree honest (the result of `parse_str` only
+    /// reflects what was literally in the TOML).
+    ///
+    /// App-level defaults applied here:
+    /// - `trigger` → [`DEFAULT_TRIGGER`] when absent
+    /// - `interval` → [`DEFAULT_INTERVAL`] when absent
     pub fn apply_defaults(&mut self) {
+        apply_app_defaults(&mut self.app);
         let app = self.app.name.clone();
         for (svc_name, svc) in &mut self.services {
             apply_service_defaults(&app, svc_name, svc);
         }
+    }
+}
+
+fn apply_app_defaults(app: &mut AppSection) {
+    if app.trigger.is_none() {
+        app.trigger = Some(DEFAULT_TRIGGER.to_owned());
+    }
+    if app.interval.is_none() {
+        app.interval = Some(DEFAULT_INTERVAL.to_owned());
     }
 }
 
