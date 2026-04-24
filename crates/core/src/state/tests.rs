@@ -23,6 +23,43 @@ fn applies_requested_mode() {
     assert_eq!(mode, 0o600, "mode = {mode:#o}");
 }
 
+// Direct FFI to umask(2) to avoid a libc dep for a single test.
+// `umask` signature is stable across glibc/musl: mode_t is u32 on
+// Linux. `unsafe extern "C"` is the canonical pattern.
+#[allow(unsafe_code)]
+unsafe extern "C" {
+    fn umask(mask: u32) -> u32;
+}
+
+#[test]
+fn applies_public_mode_under_restrictive_umask() {
+    // Regression: `OpenOptions::mode` is masked by the process's
+    // `umask(2)`. Under `umask 077` a requested 0o644 would land as
+    // 0o600 silently. The explicit `chmod` after open restores the
+    // caller's exact mode.
+    //
+    // `umask(2)` is process-global. Cargo's default multi-threaded
+    // test runner may interleave this with other tests, but no other
+    // test in this crate depends on a specific umask value, so the
+    // race is theoretical. We restore the old umask even on a write
+    // failure so the process stays clean.
+    #[allow(unsafe_code)]
+    let prev = unsafe { umask(0o077) };
+
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("public");
+    let write_result = atomic_write(&target, b"hi", 0o644);
+
+    #[allow(unsafe_code)]
+    unsafe {
+        umask(prev);
+    }
+
+    write_result.unwrap();
+    let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o644, "mode = {mode:#o}");
+}
+
 #[test]
 fn overwrites_existing_target_atomically() {
     let dir = tempfile::tempdir().unwrap();

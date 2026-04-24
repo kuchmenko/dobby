@@ -24,7 +24,7 @@
 //! passphrase) live in the CLI layer and their persistence lands in
 //! separate PRs once the age-encrypted secret pipeline is in place.
 
-use std::fs;
+use std::fs::{self, File};
 use std::net::IpAddr;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -77,6 +77,27 @@ pub enum InitError {
     #[error("target directory {0} already contains dobby state; pass --force to overwrite")]
     NotEmpty(PathBuf),
 
+    /// `keeper_ip` is one address family and the network-scope fields
+    /// (`subnet` / `static_range`) are another. The resulting
+    /// `keeper.toml` would be non-functional — refuse to write it.
+    #[error(
+        "network config family mismatch: keeper_ip is {keeper_ip_family}, but {field} = {field_value:?} is {field_family}"
+    )]
+    FamilyMismatch {
+        field: &'static str,
+        field_value: String,
+        keeper_ip_family: &'static str,
+        field_family: &'static str,
+    },
+
+    /// Malformed `subnet` or `static_range` string.
+    #[error("{field} = {value:?} is not a valid {expected}")]
+    MalformedNetworkField {
+        field: &'static str,
+        value: String,
+        expected: &'static str,
+    },
+
     /// TLS material generation failed.
     #[error("TLS material generation: {0}")]
     Tls(#[from] tls::TlsError),
@@ -107,6 +128,10 @@ pub enum InitError {
 /// Entry point. Idempotent only with `force = true`; otherwise refuses
 /// to run on a non-empty `dir`.
 pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
+    // Validate before we touch disk — family mismatches would produce
+    // a non-functional keeper.toml and there's no reason to write it.
+    validate_network_families(req)?;
+
     ensure_target_dir(&req.dir, req.force)?;
 
     let tls_dir = req.dir.join("tls");
@@ -163,9 +188,38 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
         0o600,
     )?;
 
+    // Fsync the directory inodes themselves so the newly-renamed
+    // entries survive a power loss between return-from-rename and
+    // the kernel flushing the metadata journal. POSIX rename(2) is
+    // atomic on the inode-in-dir mapping but makes no durability
+    // guarantee unless we fsync the containing directory.
+    //
+    // `atomic_write` deliberately doesn't do this per-call (one-off
+    // writes to already-fsynced dirs wouldn't benefit) — we do it
+    // here, once, for the batch.
+    for d in [&req.dir, &tls_dir, &secrets_dir] {
+        fsync_dir(d)?;
+    }
+
     Ok(InitOutcome {
         bootstrap_token: token,
         tls_fingerprint_sha256: tls_material.host_fingerprint_sha256,
+    })
+}
+
+/// Open `dir` read-only and `fsync` it. Linux allows fsync on a
+/// directory fd to persist directory-entry changes (rename results,
+/// mkdir results); macOS / BSD differ but still accept the call.
+fn fsync_dir(dir: &Path) -> Result<(), InitError> {
+    let handle = File::open(dir).map_err(|source| InitError::Io {
+        op: "open dir for fsync",
+        path: dir.to_path_buf(),
+        source,
+    })?;
+    handle.sync_all().map_err(|source| InitError::Io {
+        op: "fsync dir",
+        path: dir.to_path_buf(),
+        source,
     })
 }
 
@@ -180,6 +234,78 @@ fn build_config(req: &Request) -> KeeperConfig {
             dns_upstream: req.dns_upstream,
         },
     }
+}
+
+/// Reject configs whose CIDR / range fields belong to a different
+/// address family than `keeper_ip`. Everyone else in `Request` is
+/// already typed `IpAddr` and checked here too for symmetry.
+fn validate_network_families(req: &Request) -> Result<(), InitError> {
+    let kip = req.keeper_ip;
+
+    // gateway + dns_upstream are IpAddr already — cheap to compare.
+    check_family("gateway", req.gateway, kip)?;
+    check_family("dns_upstream", req.dns_upstream, kip)?;
+
+    // subnet is "<ip>/<prefix>"; we only need the LHS for family.
+    let (subnet_ip_str, _) =
+        req.subnet
+            .split_once('/')
+            .ok_or_else(|| InitError::MalformedNetworkField {
+                field: "subnet",
+                value: req.subnet.clone(),
+                expected: "CIDR (\"<ip>/<prefix>\")",
+            })?;
+    let subnet_ip: IpAddr =
+        subnet_ip_str
+            .parse()
+            .map_err(|_| InitError::MalformedNetworkField {
+                field: "subnet",
+                value: req.subnet.clone(),
+                expected: "CIDR with parseable IP",
+            })?;
+    check_family("subnet", subnet_ip, kip)?;
+
+    // static_range is "<first>-<last>". Family must match on both.
+    let (first_str, last_str) =
+        req.static_range
+            .split_once('-')
+            .ok_or_else(|| InitError::MalformedNetworkField {
+                field: "static_range",
+                value: req.static_range.clone(),
+                expected: "range (\"<first-ip>-<last-ip>\")",
+            })?;
+    let first: IpAddr = first_str
+        .trim()
+        .parse()
+        .map_err(|_| InitError::MalformedNetworkField {
+            field: "static_range",
+            value: req.static_range.clone(),
+            expected: "range with parseable IPs",
+        })?;
+    let last: IpAddr = last_str
+        .trim()
+        .parse()
+        .map_err(|_| InitError::MalformedNetworkField {
+            field: "static_range",
+            value: req.static_range.clone(),
+            expected: "range with parseable IPs",
+        })?;
+    check_family("static_range", first, kip)?;
+    check_family("static_range", last, kip)?;
+
+    Ok(())
+}
+
+fn check_family(field: &'static str, value: IpAddr, keeper_ip: IpAddr) -> Result<(), InitError> {
+    if value.is_ipv4() != keeper_ip.is_ipv4() {
+        return Err(InitError::FamilyMismatch {
+            field,
+            field_value: value.to_string(),
+            keeper_ip_family: if keeper_ip.is_ipv4() { "IPv4" } else { "IPv6" },
+            field_family: if value.is_ipv4() { "IPv4" } else { "IPv6" },
+        });
+    }
+    Ok(())
 }
 
 /// Create `dir` if missing; if it exists with contents, require
