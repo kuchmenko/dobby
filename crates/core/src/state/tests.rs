@@ -62,3 +62,26 @@ fn reports_path_in_error() {
     let msg = err.to_string();
     assert!(msg.contains("/proc/"), "msg = {msg}");
 }
+
+#[test]
+fn leaves_no_tempfile_on_failure() {
+    // Force rename to fail by making the target a directory — you
+    // can't `rename(2)` a regular file over a non-empty directory.
+    // Before the refactor, tmp would orphan here; after, cleanup runs.
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("target");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("pin"), b"makes the dir non-empty").unwrap();
+
+    let err = atomic_write(&target, b"data", 0o644).unwrap_err();
+    assert!(matches!(err, AtomicWriteError::Io { .. }), "{err}");
+
+    // Walk the parent dir: no `.target.tmp-*` survived.
+    let strays: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name())
+        .filter(|n| n.to_string_lossy().starts_with(".target.tmp-"))
+        .collect();
+    assert!(strays.is_empty(), "tempfile leaked: {strays:?}");
+}
