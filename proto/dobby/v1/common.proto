@@ -1,12 +1,13 @@
 // Shared types for dobby's gRPC surface.
 //
 // Imported by:
-//   - keeper.proto  (CLI ↔ Keeper gRPC)
-//   - elf.proto     (Keeper ↔ Elf gRPC)
+//   - dobby/v1/keeper.proto  (CLI ↔ Keeper gRPC)
+//   - dobby/v1/elf.proto     (Keeper ↔ Elf gRPC)
 //
-// Versioning: all messages live under `dobby.v1`. Wire-breaking changes
-// require a new major version package (`dobby.v2`) with a deliberate
-// migration plan — enforced by `buf breaking` in CI.
+// Versioning: all messages live under `dobby.v1` (and the file path
+// must match per buf's DIRECTORY_SAME_PACKAGE rule). Wire-breaking
+// changes require a new major version package (`dobby.v2`) with a
+// deliberate migration plan — enforced by `buf breaking` in CI.
 
 syntax = "proto3";
 
@@ -32,6 +33,3 @@ message Status {
   Code code = 1;
   string message = 2;
 }
-
-// Empty placeholder for RPCs that don't need a request/response body.
-message Empty {}

@@ -22,16 +22,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|p| p.parent())
         .expect("crates/proto must live inside a workspace root")
         .to_path_buf();
-    let proto_dir = workspace_root.join("proto");
+
+    // `proto_root` is the include-path buf uses; `proto_pkg_dir` is where
+    // the actual files live. Having separate layers lets `import` paths
+    // inside the .proto files read as `dobby/v1/common.proto`, matching
+    // the package — required by buf STANDARD's DIRECTORY_SAME_PACKAGE.
+    let proto_root = workspace_root.join("proto");
+    let proto_pkg_dir = proto_root.join("dobby").join("v1");
 
     let files = [
-        proto_dir.join("common.proto"),
-        proto_dir.join("keeper.proto"),
-        proto_dir.join("elf.proto"),
+        proto_pkg_dir.join("common.proto"),
+        proto_pkg_dir.join("keeper.proto"),
+        proto_pkg_dir.join("elf.proto"),
     ];
 
     // Rebuild whenever any .proto file (or the directory listing) changes.
-    println!("cargo:rerun-if-changed={}", proto_dir.display());
+    println!("cargo:rerun-if-changed={}", proto_pkg_dir.display());
     for f in &files {
         println!("cargo:rerun-if-changed={}", f.display());
     }
@@ -39,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_prost_build::configure()
         .build_server(true)
         .build_client(true)
-        .compile_protos(&files, &[proto_dir])?;
+        .compile_protos(&files, &[proto_root])?;
 
     Ok(())
 }
