@@ -1,0 +1,9 @@
+[Unit]
+Description=Dobby Keeper — self-rollback on crash loop
+# Triggered by `OnFailure=` on `dobby-keeper.service` after
+# StartLimitBurst failures. One-shot: swap the `/opt/dobby/current`
+# symlink to the previous version, then restart `dobby-keeper`.
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dobby/current update --rollback-self

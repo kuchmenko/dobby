@@ -1,0 +1,16 @@
+[package]
+name = "dobby-runtime"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Dobby — native OCI container runtime (Phase 3 scope)"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

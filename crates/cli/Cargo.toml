@@ -1,0 +1,21 @@
+[package]
+name = "dobby-cli"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Dobby — CLI command tree (clap-based, dispatches to keeper/elf crates)"
+publish = false
+
+[dependencies]
+dobby-core = { workspace = true }
+dobby-keeper = { workspace = true }
+dobby-elf = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

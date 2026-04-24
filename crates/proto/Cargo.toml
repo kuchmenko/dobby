@@ -1,0 +1,25 @@
+[package]
+name = "dobby-proto"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Dobby — protobuf / gRPC generated types (internal)"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+tonic = { workspace = true }
+tonic-prost = { workspace = true }
+prost = { workspace = true }
+
+[build-dependencies]
+tonic-build = { workspace = true }
+tonic-prost-build = { workspace = true }
+protoc-bin-vendored = "3"
+
+[lints]
+workspace = true

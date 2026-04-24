@@ -1,0 +1,44 @@
+// CLI ↔ Keeper gRPC surface.
+//
+// Used by:   `dobby` CLI on the workstation (crate `cli`)
+// Served by: `dobby keeper start` (crate `keeper`)
+//
+// Transport: TLS over Tailscale (Keeper TLS cert, ed25519 request signing
+// from paired CLI keys). See issue #1 § Authentication.
+//
+// Phase 1 surface is intentionally minimal: a handshake + status probe.
+// InitApp / Push / Rollback / Destroy / Scale / Secrets / Logs / Exec / Watch
+// RPCs are added phase-by-phase as the Keeper gains real capability.
+
+syntax = "proto3";
+
+package dobby.v1;
+
+import "common.proto";
+
+service Keeper {
+  // Handshake — CLI announces its ed25519 public key and receives the
+  // Keeper's version + TLS fingerprint confirmation. Invoked by `dobby pair`.
+  rpc Pair(PairRequest) returns (PairResponse);
+
+  // Cheap liveness probe used by `dobby status` and CI.
+  rpc HealthCheck(Empty) returns (KeeperHealth);
+}
+
+message PairRequest {
+  // Ed25519 public key of the workstation (raw 32 bytes).
+  bytes workstation_pubkey = 1;
+  // One-time bootstrap token from `dobby keeper init`.
+  string bootstrap_token = 2;
+}
+
+message PairResponse {
+  Version keeper_version = 1;
+  // SHA-256 fingerprint of the Keeper's TLS cert for TOFU storage on the CLI.
+  bytes tls_fingerprint_sha256 = 2;
+}
+
+message KeeperHealth {
+  Version keeper_version = 1;
+  Status status = 2;
+}

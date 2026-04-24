@@ -1,0 +1,89 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/proto",
+    "crates/core",
+    "crates/cli",
+    "crates/keeper",
+    "crates/elf",
+    "crates/runtime",
+    "crates/proxy",
+]
+
+# Root package: the `dobby` binary. Thin dispatch layer over the `cli` crate.
+[package]
+name = "dobby"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kuchmenko/dobby"
+description = "Proxmox LXC deployment automation (CLI / Keeper / Elf)"
+publish = false
+
+[[bin]]
+name = "dobby"
+path = "src/main.rs"
+
+[dependencies]
+dobby-cli = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# ── workspace-wide config ───────────────────────────────────────────────────
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kuchmenko/dobby"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# internal crates
+dobby-proto = { path = "crates/proto" }
+dobby-core = { path = "crates/core" }
+dobby-cli = { path = "crates/cli" }
+dobby-keeper = { path = "crates/keeper" }
+dobby-elf = { path = "crates/elf" }
+dobby-runtime = { path = "crates/runtime" }
+dobby-proxy = { path = "crates/proxy" }
+
+# async runtime — granular features; each consumer adds only what it uses
+tokio = { version = "1", default-features = false }
+
+# CLI
+clap = { version = "4", features = ["derive", "env", "wrap_help"] }
+
+# logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+
+# error handling — `anyhow` in binary layers, `thiserror` in crate APIs
+anyhow = "1"
+thiserror = "2"
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# gRPC (tonic 0.14 split prost into tonic-prost)
+tonic = { version = "0.14", default-features = false, features = ["server", "channel", "codegen", "tls-aws-lc", "tls-webpki-roots"] }
+tonic-prost = "0.14"
+tonic-build = { version = "0.14", default-features = false, features = ["transport"] }
+tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
+prost = "0.14"
+
+# memory hygiene (secrets) — used by `core` and bound material in keeper/elf later
+zeroize = { version = "1", features = ["zeroize_derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+# Default lint group. Pedantic/nursery stay opt-in via ad-hoc `-W` flags.
+all = { level = "deny", priority = -1 }

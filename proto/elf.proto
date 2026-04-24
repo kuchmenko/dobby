@@ -1,0 +1,40 @@
+// Keeper ↔ Elf gRPC surface.
+//
+// Used by:   `dobby keeper start` (crate `keeper`) — gRPC client
+// Served by: `dobby elf start` inside each managed LXC (crate `elf`)
+//
+// Transport: mTLS. Keeper is the CA; every Elf receives a client cert at
+// bootstrap time. Bound to the LXC bridge (vmbr0), not public interfaces.
+//
+// Phase 1 surface is minimal: handshake + health. Deploy / Rollback /
+// RequestSecrets / StreamLogs / Exec arrive in Phase 2+.
+
+syntax = "proto3";
+
+package dobby.v1;
+
+import "common.proto";
+
+service Elf {
+  // Connect-back handshake called by the Keeper after LXC bootstrap.
+  rpc Hello(HelloRequest) returns (HelloResponse);
+
+  // Cheap liveness probe — called by Keeper from `dobby status` / watchdog.
+  rpc HealthCheck(Empty) returns (ElfHealth);
+}
+
+message HelloRequest {
+  Version keeper_version = 1;
+}
+
+message HelloResponse {
+  Version elf_version = 1;
+  // IP the Elf observes on eth0, for drift detection (see issue #1
+  // § Network configuration "Safety net: heartbeat carries observed IP").
+  string observed_ip = 2;
+}
+
+message ElfHealth {
+  Version elf_version = 1;
+  Status status = 2;
+}

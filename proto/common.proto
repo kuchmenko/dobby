@@ -1,0 +1,37 @@
+// Shared types for dobby's gRPC surface.
+//
+// Imported by:
+//   - keeper.proto  (CLI ↔ Keeper gRPC)
+//   - elf.proto     (Keeper ↔ Elf gRPC)
+//
+// Versioning: all messages live under `dobby.v1`. Wire-breaking changes
+// require a new major version package (`dobby.v2`) with a deliberate
+// migration plan — enforced by `buf breaking` in CI.
+
+syntax = "proto3";
+
+package dobby.v1;
+
+// Protocol / binary version reported during handshake and health probes.
+message Version {
+  // Semantic version string, e.g. "0.4.0".
+  string semver = 1;
+  // Short git SHA (7 chars) of the build, when available.
+  string git_sha = 2;
+}
+
+// Generic status. Negative statuses should always carry a human-readable
+// `message`; machine-matchable states live in `code`.
+message Status {
+  enum Code {
+    CODE_UNSPECIFIED = 0;
+    CODE_OK = 1;
+    CODE_DEGRADED = 2;
+    CODE_FAILED = 3;
+  }
+  Code code = 1;
+  string message = 2;
+}
+
+// Empty placeholder for RPCs that don't need a request/response body.
+message Empty {}

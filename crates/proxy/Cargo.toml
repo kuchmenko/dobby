@@ -1,0 +1,16 @@
+[package]
+name = "dobby-proxy"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Dobby — reverse proxy (HTTP/1.1 + WebSocket), in-process under Keeper"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

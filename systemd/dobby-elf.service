@@ -1,0 +1,21 @@
+[Unit]
+Description=Dobby Elf
+# The ONLY dobby unit enabled inside a managed LXC. Agent orchestrates
+# every per-service unit explicitly via `systemctl start dobby-<svc>`
+# after secrets are written to tmpfs — see issue #1 § Reboot recovery.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/dobby elf start
+Restart=always
+RestartSec=5s
+WatchdogSec=30s
+# `TimeoutStartSec=infinity` lets Elf retry `RequestSecrets` without
+# systemd killing the unit during a Keeper outage. The runtime
+# `WatchdogSec=30s` still kicks in if the retry loop goes silent.
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

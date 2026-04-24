@@ -1,0 +1,2 @@
+# Defaults are the rustfmt house style. Overrides only if a concrete reason
+# surfaces — avoid bikesheds.
