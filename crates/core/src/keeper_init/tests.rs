@@ -40,9 +40,14 @@ fn writes_expected_layout() {
         );
     }
 
-    // Token round-trips onto disk.
+    // Token round-trips onto disk. `assert_eq!` would print both
+    // sides via Debug on mismatch, leaking secret material into CI
+    // logs; compare with an explicit branch that panics with a
+    // generic message instead.
     let on_disk = fs::read_to_string(tmp.path().join("secrets/bootstrap_token")).unwrap();
-    assert_eq!(on_disk, **outcome.bootstrap_token);
+    if on_disk != **outcome.bootstrap_token {
+        panic!("bootstrap token on disk diverges from value returned by init");
+    }
 }
 
 #[test]
@@ -60,8 +65,31 @@ fn applies_expected_permissions() {
     assert_eq!(mode_of(&tmp.path().join("tls/host.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("secrets/bootstrap_token")), 0o600);
 
-    // Secrets directory — owner only.
+    // Dir modes — tls/ is world-traversable (so non-root can read
+    // the public certs inside), secrets/ is owner-only.
+    assert_eq!(mode_of(&tmp.path().join("tls")), 0o755);
     assert_eq!(mode_of(&tmp.path().join("secrets")), 0o700);
+}
+
+#[test]
+fn creates_multi_level_missing_path() {
+    // `create_dir_all` on a path with multiple missing components
+    // yields several newly-created directory entries. The parent
+    // of each must be fsync'd — testing the actual fsync side
+    // effect isn't observable, but we can at least confirm the
+    // code path runs without error and all intermediate dirs exist.
+    let tmp = tempfile::tempdir().unwrap();
+    let nested = tmp.path().join("a/b/c/dobby");
+    let mut r = req(&nested);
+    r.force = false;
+    init(&r).unwrap();
+
+    for expected in ["a", "a/b", "a/b/c", "a/b/c/dobby", "a/b/c/dobby/tls"] {
+        assert!(
+            tmp.path().join(expected).is_dir(),
+            "expected intermediate dir {expected} to exist"
+        );
+    }
 }
 
 #[test]

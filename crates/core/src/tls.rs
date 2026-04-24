@@ -9,6 +9,19 @@
 //! pairing.
 //!
 //! See issue #1 § Authentication.
+//!
+//! **Phase 1 limitation** — `rcgen::KeyPair` does not implement
+//! `ZeroizeOnDrop`; its internal serialized-DER buffer survives
+//! until the allocator reclaims the page. We wrap the PEM
+//! serialisations in `Zeroizing<String>` (which IS what lands in
+//! the operator's file and in process memory when Keeper later
+//! reads the keys back), but the in-function `ca_key` / `host_key`
+//! keypairs themselves are not wiped. `rcgen`'s `zeroize` feature
+//! would let us call `.zeroize()` manually, but `Issuer::new`
+//! consumes the `ca_key` by value — zeroising it before the move
+//! would break the subsequent `signed_by()`, and there's no
+//! post-move handle to reach into. This is worth revisiting
+//! alongside the privsep work in Phase 5.
 
 use std::net::IpAddr;
 
