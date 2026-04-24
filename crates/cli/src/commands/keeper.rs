@@ -1,12 +1,28 @@
 //! `dobby keeper ...` — Keeper daemon lifecycle, bootstrap, backup, restore,
 //! fingerprint display, key rotation. See issue #1 § CLI commands → Setup.
 
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 
 use super::not_yet;
+
+/// Port the Keeper's tonic gRPC server binds to — see issue #1
+/// § Communication protocol / Keeper LXC first-boot.
+const KEEPER_GRPC_PORT: u16 = 8443;
+
+/// Format an IP + the fixed Keeper gRPC port as a `host:port` endpoint.
+///
+/// `SocketAddr`'s `Display` impl handles the IPv4 vs IPv6 asymmetry —
+/// IPv6 is wrapped in `[...]` per RFC 3986 so the trailing `:<port>`
+/// doesn't collide with the IP's own colons. A naive
+/// `format!("{ip}:{port}")` would produce `fd00::50:8443`, which the
+/// shell would accept but the pair parser would read as the address
+/// `fd00::0050:8443` with no port.
+fn keeper_endpoint(ip: IpAddr) -> SocketAddr {
+    SocketAddr::new(ip, KEEPER_GRPC_PORT)
+}
 
 /// `dobby keeper <sub>` subcommands.
 #[derive(Debug, Subcommand)]
@@ -170,8 +186,10 @@ fn run_init(args: InitArgs) -> anyhow::Result<()> {
     println!();
     println!("Pair from your workstation:");
     println!(
-        "  dobby pair {}:8443 --fingerprint {} --token {}",
-        args.keeper_ip, outcome.tls_fingerprint_sha256, &*outcome.bootstrap_token,
+        "  dobby pair {} --fingerprint {} --token {}",
+        keeper_endpoint(args.keeper_ip),
+        outcome.tls_fingerprint_sha256,
+        &*outcome.bootstrap_token,
     );
     println!();
     println!("Next, provision the Proxmox API token on the PVE host");
@@ -189,4 +207,29 @@ fn run_init(args: InitArgs) -> anyhow::Result<()> {
     println!("(next PR). Then: systemctl enable --now dobby-keeper");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    use super::*;
+
+    #[test]
+    fn ipv4_endpoint_renders_without_brackets() {
+        let ep = keeper_endpoint(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 50)));
+        assert_eq!(ep.to_string(), "10.0.0.50:8443");
+    }
+
+    #[test]
+    fn ipv6_endpoint_renders_with_brackets() {
+        let ep = keeper_endpoint(IpAddr::V6("fd00::50".parse::<Ipv6Addr>().unwrap()));
+        assert_eq!(ep.to_string(), "[fd00::50]:8443");
+    }
+
+    #[test]
+    fn ipv6_loopback_endpoint() {
+        let ep = keeper_endpoint(IpAddr::V6(Ipv6Addr::LOCALHOST));
+        assert_eq!(ep.to_string(), "[::1]:8443");
+    }
 }
