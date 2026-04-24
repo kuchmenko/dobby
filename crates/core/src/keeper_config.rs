@@ -84,9 +84,14 @@ mod tests {
         let c = sample();
         let s = c.to_toml().unwrap();
         let back = KeeperConfig::from_toml(&s).unwrap();
+        // Cover every field so a future serde-attribute tweak that
+        // drops one can't pass this test silently.
+        assert_eq!(c.network.bridge, back.network.bridge);
+        assert_eq!(c.network.subnet, back.network.subnet);
+        assert_eq!(c.network.static_range, back.network.static_range);
         assert_eq!(c.network.keeper_ip, back.network.keeper_ip);
         assert_eq!(c.network.gateway, back.network.gateway);
-        assert_eq!(c.network.bridge, back.network.bridge);
+        assert_eq!(c.network.dns_upstream, back.network.dns_upstream);
     }
 
     #[test]

@@ -123,6 +123,77 @@ fn fingerprint_is_reported_and_matches_host_cert() {
         outcome
             .tls_fingerprint_sha256
             .chars()
-            .all(|c| c.is_ascii_hexdigit())
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+        "fingerprint must be lowercase hex"
+    );
+}
+
+#[test]
+fn rejects_mixed_family_gateway() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.keeper_ip = "fd00::50".parse().unwrap();
+    r.gateway = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)); // v4 with v6 keeper
+    // subnet/static_range defaults are v4 too — we'll surface the
+    // first offender (gateway) since we check it before subnet.
+    let err = init(&r).unwrap_err();
+    match err {
+        InitError::FamilyMismatch { field, .. } => assert_eq!(field, "gateway"),
+        other => panic!("expected FamilyMismatch, got: {other}"),
+    }
+    // And no files were written.
+    assert!(!tmp.path().join("keeper.toml").exists());
+}
+
+#[test]
+fn rejects_mixed_family_subnet() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.keeper_ip = "fd00::50".parse().unwrap();
+    r.gateway = "fd00::1".parse().unwrap();
+    r.dns_upstream = "2606:4700:4700::1111".parse().unwrap();
+    // subnet + static_range are still v4 defaults → mismatch flagged
+    // on subnet (first thing checked after the typed fields).
+    let err = init(&r).unwrap_err();
+    match err {
+        InitError::FamilyMismatch { field, .. } => assert_eq!(field, "subnet"),
+        other => panic!("expected FamilyMismatch on subnet, got: {other}"),
+    }
+}
+
+#[test]
+fn accepts_consistent_ipv6_config() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.keeper_ip = "fd00::50".parse().unwrap();
+    r.gateway = "fd00::1".parse().unwrap();
+    r.dns_upstream = "2606:4700:4700::1111".parse().unwrap();
+    r.subnet = "fd00::/64".into();
+    r.static_range = "fd00::200-fd00::250".into();
+    init(&r).unwrap();
+
+    let cfg = crate::keeper_config::KeeperConfig::from_toml(
+        &fs::read_to_string(tmp.path().join("keeper.toml")).unwrap(),
+    )
+    .unwrap();
+    assert!(cfg.network.keeper_ip.is_ipv6());
+    assert!(cfg.network.gateway.is_ipv6());
+}
+
+#[test]
+fn rejects_malformed_subnet() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.subnet = "not-a-cidr".into();
+    let err = init(&r).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            InitError::MalformedNetworkField {
+                field: "subnet",
+                ..
+            }
+        ),
+        "got: {err}"
     );
 }

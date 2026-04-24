@@ -70,11 +70,13 @@ pub fn generate(keeper_ip: IpAddr) -> Result<TlsArtifacts, TlsError> {
     ];
     let ca_cert = ca_params.self_signed(&ca_key)?;
     let ca_cert_pem = ca_cert.pem();
-    let ca_key_pem_plain = ca_key.serialize_pem();
+    // Wrap in `Zeroizing` at the exact call that surfaces the
+    // plaintext PEM — no window where the raw bytes live in an
+    // ordinary `String`.
+    let ca_key_pem = Zeroizing::new(ca_key.serialize_pem());
 
-    // Wrap the CA private key serialisation in an `Issuer` so rcgen
-    // can sign leaf certs with it. `Issuer` takes ownership of the
-    // keypair; we've already read out `ca_key_pem_plain`.
+    // `Issuer::new` takes ownership of the keypair; we've already
+    // pulled the PEM serialisation out via the line above.
     let issuer = Issuer::new(ca_params, ca_key);
 
     // ── Host ────────────────────────────────────────────────────────
@@ -108,11 +110,8 @@ pub fn generate(keeper_ip: IpAddr) -> Result<TlsArtifacts, TlsError> {
     let host_cert = host_params.signed_by(&host_key, &issuer)?;
 
     let host_cert_pem = host_cert.pem();
-    let host_key_pem_plain = host_key.serialize_pem();
+    let host_key_pem = Zeroizing::new(host_key.serialize_pem());
     let host_der = host_cert.der().to_vec();
-
-    let ca_key_pem = Zeroizing::new(ca_key_pem_plain);
-    let host_key_pem = Zeroizing::new(host_key_pem_plain);
 
     // ── Fingerprint ─────────────────────────────────────────────────
     let mut hasher = Sha256::new();

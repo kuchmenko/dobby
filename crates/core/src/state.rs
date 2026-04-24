@@ -10,9 +10,9 @@
 //!
 //! See issue #1 § State management.
 
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, Permissions};
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -70,10 +70,19 @@ pub fn atomic_write(target: &Path, contents: &[u8], mode: u32) -> Result<(), Ato
     //     `target`; `tmp` no longer exists, so there's nothing to clean.
     //     That's why the cleanup branch is error-only.
     let result = (|| -> Result<(), AtomicWriteError> {
+        // Open with a restrictive 0o600 first. `OpenOptions::mode` is
+        // subject to the process's `umask(2)`: under a hardened umask
+        // (0o077 common for root / systemd) a requested 0o644 would
+        // silently narrow to 0o600, and we'd have no way to notice.
+        // We re-apply the requested `mode` explicitly via
+        // `set_permissions` (= `chmod(2)`, NOT affected by umask)
+        // once the content is on disk — so the final bits are exactly
+        // what the caller asked for, and the brief window where the
+        // tempfile exists is as tight as possible.
         let mut f = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .mode(mode)
+            .mode(0o600)
             .open(&tmp)
             .map_err(|source| AtomicWriteError::Io {
                 op: "create tempfile",
@@ -92,6 +101,14 @@ pub fn atomic_write(target: &Path, contents: &[u8], mode: u32) -> Result<(), Ato
             op: "fsync tempfile",
             path: tmp.clone(),
             source,
+        })?;
+
+        std::fs::set_permissions(&tmp, Permissions::from_mode(mode)).map_err(|source| {
+            AtomicWriteError::Io {
+                op: "chmod tempfile",
+                path: tmp.clone(),
+                source,
+            }
         })?;
 
         std::fs::rename(&tmp, target).map_err(|source| AtomicWriteError::Io {

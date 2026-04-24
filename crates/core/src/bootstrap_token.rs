@@ -38,7 +38,10 @@ pub fn generate() -> Result<Zeroizing<String>, TokenError> {
 
     let mut out = String::with_capacity(TOKEN_PREFIX.len() + TOKEN_BYTES * 2);
     out.push_str(TOKEN_PREFIX);
-    out.push_str(&const_hex::encode(*bytes));
+    // `bytes.as_ref()` borrows the entropy — `*bytes` would dereference
+    // to an owned `[u8; 24]` (Copy), producing a second plaintext copy
+    // outside the `Zeroizing` wrapper for the lifetime of the encode call.
+    out.push_str(&const_hex::encode(bytes.as_ref()));
     Ok(Zeroizing::new(out))
 }
 
