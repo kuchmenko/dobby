@@ -59,12 +59,17 @@ pub fn atomic_write(target: &Path, contents: &[u8], mode: u32) -> Result<(), Ato
 
     let tmp = parent.join(tmp_name(filename));
 
-    // Scope the File so it closes (flushing the user buffer) before we
-    // rename — rename operates on the inode, but if we have an open
-    // writable handle with buffered content we need to ensure we've
-    // actually written everything. `sync_all` below pushes buffers to
-    // disk, and the Drop after that just closes the fd.
-    let err = (|| -> Result<(), AtomicWriteError> {
+    // IIFE just to funnel `?`-errors from the four steps into one
+    // `Result` we can pattern-match on for cleanup. No resource-lifecycle
+    // tricks: `f` is closed naturally by `Drop` at the end of the block.
+    //
+    // Cleanup contract:
+    //   - On error at any step (open / write / sync / rename), `tmp`
+    //     may exist as an orphan → we remove it best-effort.
+    //   - On success, `rename(2)` moved the inode from `tmp` to
+    //     `target`; `tmp` no longer exists, so there's nothing to clean.
+    //     That's why the cleanup branch is error-only.
+    let result = (|| -> Result<(), AtomicWriteError> {
         let mut f = OpenOptions::new()
             .create_new(true)
             .write(true)
@@ -89,24 +94,23 @@ pub fn atomic_write(target: &Path, contents: &[u8], mode: u32) -> Result<(), Ato
             source,
         })?;
 
-        drop(f);
-        Ok(())
+        std::fs::rename(&tmp, target).map_err(|source| AtomicWriteError::Io {
+            op: "rename tempfile into place",
+            path: target.to_path_buf(),
+            source,
+        })
     })();
 
-    if let Err(e) = err {
-        // Best-effort cleanup. Ignore secondary errors — the user
-        // cares about the first failure.
+    if result.is_err() {
+        // Best-effort cleanup. Ignore secondary errors — the caller
+        // wants the *first* failure, not a fallback error from the
+        // cleanup path. `ENOENT` here is fine: the rename may have
+        // succeeded despite returning error (it shouldn't, but we
+        // guard against a pathological kernel).
         let _ = std::fs::remove_file(&tmp);
-        return Err(e);
     }
 
-    std::fs::rename(&tmp, target).map_err(|source| AtomicWriteError::Io {
-        op: "rename tempfile into place",
-        path: target.to_path_buf(),
-        source,
-    })?;
-
-    Ok(())
+    result
 }
 
 /// Produce a tempfile name in the form `.<target>.tmp-<pid>-<nanos>`.
