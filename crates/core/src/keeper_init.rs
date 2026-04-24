@@ -143,8 +143,19 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
             source,
         })?;
     }
-    // Lock down the secrets dir (tls/ already contains world-readable
-    // certs so 0755 is fine there).
+    // Explicitly set the desired directory modes — `create_dir_all`'s
+    // default is masked by `umask(2)`. Under `umask 077` (common for
+    // root / systemd units) `tls/` would become `0o700`, making
+    // `ca.crt` / `host.crt` unreachable for non-root even though the
+    // files themselves are `0o644`. `set_permissions` is `chmod(2)`,
+    // not umask-masked, so we get exactly the bits we asked for.
+    fs::set_permissions(&tls_dir, fs::Permissions::from_mode(0o755)).map_err(|source| {
+        InitError::Io {
+            op: "chmod 0755",
+            path: tls_dir.clone(),
+            source,
+        }
+    })?;
     fs::set_permissions(&secrets_dir, fs::Permissions::from_mode(0o700)).map_err(|source| {
         InitError::Io {
             op: "chmod 0700",
@@ -334,10 +345,14 @@ fn check_family(field: &'static str, value: IpAddr, keeper_ip: IpAddr) -> Result
 /// Create `dir` if missing; if it exists with contents, require
 /// `force`. Never touches user files until `force` is confirmed.
 ///
-/// When the dir is freshly created, fsync its parent so the new
-/// directory entry (e.g. the `dobby` entry under `/etc`) is durable
-/// against a crash-before-later-fsync. The later fsync in `init`
-/// covers `req.dir` and its children but not `req.dir`'s parent.
+/// When the dir is freshly created, fsync the parent of EVERY newly
+/// created ancestor. Example: `dir = /var/lib/dobby/state`, only
+/// `/var/lib` existing → `create_dir_all` produces three new
+/// directories (`dobby`, then `state`), and the entries for each
+/// live in their respective parents. Syncing only `dir.parent()`
+/// (as the previous version did) leaves `/var/lib`'s `dobby` entry
+/// non-durable against a crash between init's return and the next
+/// ambient fsync.
 fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
     match fs::read_dir(dir) {
         Ok(mut iter) => {
@@ -348,14 +363,26 @@ fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
             Ok(())
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Snapshot the chain of missing ancestors BEFORE creating
+            // anything — after `create_dir_all`, every one of them
+            // exists and we can't distinguish new from pre-existing.
+            let missing = missing_ancestors(dir);
+
             fs::create_dir_all(dir).map_err(|source| InitError::Io {
                 op: "mkdir -p",
                 path: dir.to_path_buf(),
                 source,
             })?;
-            if let Some(parent) = dir.parent() {
-                if !parent.as_os_str().is_empty() {
-                    fsync_dir(parent)?;
+
+            // Fsync the parent of each newly-created directory so
+            // its dir-entry is on stable storage. Order doesn't
+            // matter for correctness (each fsync is independent),
+            // but we go shallow-first for deterministic test output.
+            for created in missing.iter().rev() {
+                if let Some(parent) = created.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        fsync_dir(parent)?;
+                    }
                 }
             }
             Ok(())
@@ -366,6 +393,25 @@ fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
             source: e,
         }),
     }
+}
+
+/// Walk upward from `dir` collecting every ancestor that does not
+/// exist on disk. Deepest-first (i.e. `dir` is first if missing).
+/// Stops at the first existing ancestor or at the filesystem root.
+fn missing_ancestors(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut cursor = dir;
+    loop {
+        if cursor.as_os_str().is_empty() || cursor.exists() {
+            break;
+        }
+        out.push(cursor.to_path_buf());
+        match cursor.parent() {
+            Some(parent) => cursor = parent,
+            None => break,
+        }
+    }
+    out
 }
 
 #[cfg(test)]
