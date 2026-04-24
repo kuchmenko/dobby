@@ -246,8 +246,11 @@ fn validate_network_families(req: &Request) -> Result<(), InitError> {
     check_family("gateway", req.gateway, kip)?;
     check_family("dns_upstream", req.dns_upstream, kip)?;
 
-    // subnet is "<ip>/<prefix>"; we only need the LHS for family.
-    let (subnet_ip_str, _) =
+    // subnet is "<ip>/<prefix>" — validate BOTH halves, not just the IP.
+    // Missing-prefix, non-numeric prefix, and out-of-range prefix
+    // (>32 for v4, >128 for v6) all need to fail here so a broken
+    // CIDR never reaches keeper.toml.
+    let (subnet_ip_str, subnet_prefix_str) =
         req.subnet
             .split_once('/')
             .ok_or_else(|| InitError::MalformedNetworkField {
@@ -263,6 +266,26 @@ fn validate_network_families(req: &Request) -> Result<(), InitError> {
                 value: req.subnet.clone(),
                 expected: "CIDR with parseable IP",
             })?;
+    let subnet_prefix: u8 =
+        subnet_prefix_str
+            .parse()
+            .map_err(|_| InitError::MalformedNetworkField {
+                field: "subnet",
+                value: req.subnet.clone(),
+                expected: "CIDR with numeric prefix (0-32 for v4, 0-128 for v6)",
+            })?;
+    let max_prefix: u8 = if subnet_ip.is_ipv4() { 32 } else { 128 };
+    if subnet_prefix > max_prefix {
+        return Err(InitError::MalformedNetworkField {
+            field: "subnet",
+            value: req.subnet.clone(),
+            expected: if subnet_ip.is_ipv4() {
+                "CIDR with v4 prefix in 0-32"
+            } else {
+                "CIDR with v6 prefix in 0-128"
+            },
+        });
+    }
     check_family("subnet", subnet_ip, kip)?;
 
     // static_range is "<first>-<last>". Family must match on both.
@@ -310,6 +333,11 @@ fn check_family(field: &'static str, value: IpAddr, keeper_ip: IpAddr) -> Result
 
 /// Create `dir` if missing; if it exists with contents, require
 /// `force`. Never touches user files until `force` is confirmed.
+///
+/// When the dir is freshly created, fsync its parent so the new
+/// directory entry (e.g. the `dobby` entry under `/etc`) is durable
+/// against a crash-before-later-fsync. The later fsync in `init`
+/// covers `req.dir` and its children but not `req.dir`'s parent.
 fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
     match fs::read_dir(dir) {
         Ok(mut iter) => {
@@ -324,7 +352,13 @@ fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
                 op: "mkdir -p",
                 path: dir.to_path_buf(),
                 source,
-            })
+            })?;
+            if let Some(parent) = dir.parent() {
+                if !parent.as_os_str().is_empty() {
+                    fsync_dir(parent)?;
+                }
+            }
+            Ok(())
         }
         Err(e) => Err(InitError::Io {
             op: "read_dir",

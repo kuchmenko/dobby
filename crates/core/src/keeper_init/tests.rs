@@ -197,3 +197,87 @@ fn rejects_malformed_subnet() {
         "got: {err}"
     );
 }
+
+#[test]
+fn rejects_non_numeric_cidr_prefix() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.subnet = "10.0.0.0/xyz".into();
+    let err = init(&r).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            InitError::MalformedNetworkField {
+                field: "subnet",
+                ..
+            }
+        ),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn rejects_v4_cidr_prefix_above_32() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.subnet = "10.0.0.0/99".into();
+    let err = init(&r).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            InitError::MalformedNetworkField {
+                field: "subnet",
+                ..
+            }
+        ),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn rejects_v6_cidr_prefix_above_128() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.keeper_ip = "fd00::50".parse().unwrap();
+    r.gateway = "fd00::1".parse().unwrap();
+    r.dns_upstream = "2606:4700:4700::1111".parse().unwrap();
+    r.subnet = "fd00::/200".into();
+    r.static_range = "fd00::200-fd00::250".into();
+    let err = init(&r).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            InitError::MalformedNetworkField {
+                field: "subnet",
+                ..
+            }
+        ),
+        "got: {err}"
+    );
+}
+
+#[test]
+fn accepts_max_valid_prefix() {
+    // /32 on v4 and /128 on v6 are both technically valid (single
+    // host). The guard rejects >max, not >=max.
+    let tmp = tempfile::tempdir().unwrap();
+    let mut r = req(tmp.path());
+    r.subnet = "10.0.0.50/32".into();
+    init(&r).unwrap();
+}
+
+#[test]
+fn creates_nested_dir_and_persists_parent_entry() {
+    // When dir = <tmpdir>/nested/etc, create_dir_all makes two new
+    // directories. ensure_target_dir fsyncs parent so the `etc` entry
+    // in `<tmpdir>/nested` persists. We can't assert fsync directly
+    // (it's a no-observable-side-effect kernel call) but we CAN
+    // assert the end-to-end init still works when parent is fresh.
+    let tmp = tempfile::tempdir().unwrap();
+    let nested = tmp.path().join("nested/etc-dobby");
+    let mut r = req(&nested);
+    r.force = false;
+    init(&r).unwrap();
+    assert!(nested.join("keeper.toml").exists());
+    assert!(nested.join("tls/host.crt").exists());
+}
