@@ -13,14 +13,14 @@ syntax = "proto3";
 
 package dobby.v1;
 
-import "common.proto";
+import "dobby/v1/common.proto";
 
-service Elf {
+service ElfService {
   // Connect-back handshake called by the Keeper after LXC bootstrap.
   rpc Hello(HelloRequest) returns (HelloResponse);
 
   // Cheap liveness probe — called by Keeper from `dobby status` / watchdog.
-  rpc HealthCheck(Empty) returns (ElfHealth);
+  rpc HealthCheck(ElfHealthCheckRequest) returns (ElfHealthCheckResponse);
 }
 
 message HelloRequest {
@@ -34,7 +34,9 @@ message HelloResponse {
   string observed_ip = 2;
 }
 
-message ElfHealth {
+message ElfHealthCheckRequest {}
+
+message ElfHealthCheckResponse {
   Version elf_version = 1;
   Status status = 2;
 }

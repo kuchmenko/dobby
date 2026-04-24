@@ -14,15 +14,15 @@ syntax = "proto3";
 
 package dobby.v1;
 
-import "common.proto";
+import "dobby/v1/common.proto";
 
-service Keeper {
+service KeeperService {
   // Handshake — CLI announces its ed25519 public key and receives the
   // Keeper's version + TLS fingerprint confirmation. Invoked by `dobby pair`.
   rpc Pair(PairRequest) returns (PairResponse);
 
   // Cheap liveness probe used by `dobby status` and CI.
-  rpc HealthCheck(Empty) returns (KeeperHealth);
+  rpc HealthCheck(KeeperHealthCheckRequest) returns (KeeperHealthCheckResponse);
 }
 
 message PairRequest {
@@ -38,7 +38,9 @@ message PairResponse {
   bytes tls_fingerprint_sha256 = 2;
 }
 
-message KeeperHealth {
+message KeeperHealthCheckRequest {}
+
+message KeeperHealthCheckResponse {
   Version keeper_version = 1;
   Status status = 2;
 }
