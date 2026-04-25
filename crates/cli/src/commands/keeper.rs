@@ -119,7 +119,12 @@ pub struct InitArgs {
 }
 
 #[derive(Debug, Args)]
-pub struct StartArgs {}
+pub struct StartArgs {
+    /// State directory written by `dobby keeper init` (must contain
+    /// `keeper.toml` and `tls/host.{crt,key}`).
+    #[arg(long, default_value = "/etc/dobby")]
+    pub dir: PathBuf,
+}
 
 #[derive(Debug, Subcommand)]
 pub enum AuthProvider {
@@ -164,7 +169,7 @@ pub struct RebootstrapArgs {
 pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
     match cmd {
         KeeperCommand::Init(args) => run_init(args),
-        KeeperCommand::Start(_) => Err(not_yet("Phase 1", "dobby keeper start")),
+        KeeperCommand::Start(args) => run_start(args).await,
         KeeperCommand::ShowFingerprint => Err(not_yet("Phase 1", "dobby keeper show-fingerprint")),
         KeeperCommand::SetProxmoxToken => Err(not_yet("Phase 1", "dobby keeper set-proxmox-token")),
         KeeperCommand::Auth(AuthProvider::Github) => {
@@ -177,6 +182,11 @@ pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
             Err(not_yet("Phase 4", "dobby keeper rotate-secrets-key"))
         }
     }
+}
+
+async fn run_start(args: StartArgs) -> anyhow::Result<()> {
+    dobby_keeper::run(&args.dir).await?;
+    Ok(())
 }
 
 fn run_init(args: InitArgs) -> anyhow::Result<()> {
