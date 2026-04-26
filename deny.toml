@@ -11,11 +11,15 @@ no-default-features = false
 
 [advisories]
 version = 2
-# Deny unpatched vulnerabilities outright. `unmaintained` and `unsound`
-# are common in transitive deps (e.g. crates entering RUSTSEC limbo) —
-# warn so we notice without breaking CI on every advisory bump.
-yanked = "warn"
-ignore = []
+# Vulnerabilities (the default key) stay at fail-the-build. The two
+# advisory categories below default to "all" / "workspace" in v2 (i.e.
+# also fail) — common in transitive deps (crates entering RUSTSEC
+# limbo), so we explicitly downgrade to warn to avoid breaking CI on
+# every upstream advisory bump that isn't actually a security issue.
+unmaintained = "warn"
+unsound      = "warn"
+yanked       = "warn"
+ignore       = []
 
 [licenses]
 version = 2

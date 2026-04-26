@@ -111,7 +111,14 @@ jobs:
                   print()
           PY
       - name: Upload SARIF to GitHub Code Scanning
-        if: success() || failure()
+        # Forked-PR runs receive a read-only `GITHUB_TOKEN` — the upload
+        # would 403 with "Resource not accessible by integration" and
+        # mark clippy as failed even though linting itself passed. Skip
+        # the upload on PRs from forks; SARIF still gets attached on
+        # push events to master and on PRs from same-repo branches.
+        if: |
+          (success() || failure()) &&
+          (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false)
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: clippy.sarif
@@ -151,9 +158,13 @@ jobs:
       - name: buf lint
         run: buf lint
       - name: buf breaking (against latest tag, if any)
+        # `buf breaking --against '.git#tag=latest'` would treat `latest`
+        # as a literal git tag name (buf has no magic-tag concept) — the
+        # step would fail as soon as any real tag exists. Capture the
+        # most-recent tag and reference it explicitly.
         run: |
-          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
-            buf breaking --against '.git#tag=latest'
+          if latest_tag=$(git describe --tags --abbrev=0 2>/dev/null); then
+            buf breaking --against ".git#tag=${latest_tag}"
           else
             echo "no git tag yet — skipping buf breaking check"
           fi

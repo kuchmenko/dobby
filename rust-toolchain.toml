@@ -1,4 +1,7 @@
 [toolchain]
-channel = "1.94.1"
+# Track latest stable. Reproducibility floor is enforced separately by
+# the MSRV CI job (`cargo check` pinned at 1.88.0); developers using
+# `rustup` will auto-update to whatever stable is current.
+channel = "stable"
 components = ["rustfmt", "clippy", "rust-src"]
 profile = "default"
