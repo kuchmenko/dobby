@@ -10,6 +10,9 @@
 *.swp
 *.swo
 
+# Local agent state — Claude Code session metadata
+.claude/
+
 # macOS noise
 .DS_Store
 
