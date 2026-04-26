@@ -11,6 +11,10 @@ allow-expect-in-tests = true
 allow-dbg-in-tests = true
 allow-print-in-tests = true
 
-# clippy::cognitive_complexity threshold (default 25). Bumped slightly to
-# accommodate routing/setup functions that are inherently linear.
-cognitive-complexity-threshold = 30
+# clippy::cognitive_complexity threshold. Default is 25; we set 7 to make
+# the metric a real readability signal rather than a long-tail catch-all.
+# At 7, dispatcher tables and multi-fallback error paths surface — the
+# lint is force-warned in CI (SARIF), not blocking, so it's an alarm to
+# refactor or annotate, not a wall. Per-function allow is the answer for
+# legitimate exceptions like dispatch tables (long but isomorphic).
+cognitive-complexity-threshold = 7

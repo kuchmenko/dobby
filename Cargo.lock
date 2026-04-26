@@ -411,8 +411,6 @@ dependencies = [
  "clap",
  "dobby-core",
  "dobby-keeper",
- "tokio",
- "tracing",
 ]
 
 [[package]]

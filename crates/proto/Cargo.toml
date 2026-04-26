@@ -21,5 +21,13 @@ tonic-build = { workspace = true }
 tonic-prost-build = { workspace = true }
 protoc-bin-vendored = "3"
 
+# `prost` and `tonic-prost` ARE used — but only by tonic-prost-build's
+# generated code that lands in OUT_DIR/dobby.v1.rs and is `include!`d
+# from src/lib.rs. cargo-machete walks `src/` only and can't see
+# generated modules; cargo-udeps (build-graph aware) correctly says
+# they're used.
+[package.metadata.cargo-machete]
+ignored = ["prost", "tonic-prost"]
+
 [lints]
 workspace = true
