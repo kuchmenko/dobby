@@ -47,7 +47,7 @@ name = "ring"
 # Warn (don't deny) — duplicates are unavoidable on a fresh dep graph.
 multiple-versions = "warn"
 wildcards = "deny"
-highlight = "all-versions-default-features"
+highlight = "all"
 allow = []
 deny = []
 skip = []

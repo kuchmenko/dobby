@@ -8,16 +8,17 @@
 //! mDNS advertiser, and the embedded DNS server alongside this
 //! single tonic listener.
 
-use std::net::SocketAddr;
-use std::path::Path;
+use std::{net::SocketAddr, path::Path};
 
 use dobby_proto::v1::keeper_service_server::KeeperServiceServer;
 use tokio::signal::unix::{SignalKind, signal};
 use tracing::{error, info};
 
-use crate::config::{self, ConfigError};
-use crate::services::KeeperServiceImpl;
-use crate::tls::{self, TlsError};
+use crate::{
+    config::{self, ConfigError},
+    services::KeeperServiceImpl,
+    tls::{self, TlsError},
+};
 
 /// Port the Keeper gRPC server binds to. Must match the CLI's
 /// `KEEPER_GRPC_PORT` constant — both refer to the same protocol

@@ -2,8 +2,8 @@
 //! the Proxmox host. See issue #1 § High-level architecture.
 //!
 //! Phase 1 surface (this slice):
-//!   - tonic gRPC server bound on `keeper_ip:8443` with the host TLS
-//!     identity from `<dir>/tls/host.{crt,key}`
+//!   - tonic gRPC server bound on `keeper_ip:8443` with the host TLS identity from
+//!     `<dir>/tls/host.{crt,key}`
 //!   - `KeeperService::HealthCheck` returns version + ok status
 //!   - `KeeperService::Pair` is a stub returning `Unimplemented`
 //!   - graceful shutdown on `SIGINT` / `SIGTERM`
@@ -14,8 +14,7 @@
 //!   - reverse proxy
 //!   - sd_notify(READY=1) + WATCHDOG=1 event loop
 //!   - ed25519 signature verification on incoming CLI requests
-//!   - real Pair logic (bootstrap-token verification + workstation
-//!     pubkey registry)
+//!   - real Pair logic (bootstrap-token verification + workstation pubkey registry)
 
 #![allow(dead_code)] // skeleton stubs filled per phase
 
@@ -34,8 +33,7 @@ pub use server::ServerError;
 /// feature gymnastics painful. Keeping this `pub` is intentional and
 /// scoped to in-tree tests; downstream code depends on `run` only.
 pub mod test_support {
-    pub use crate::server::serve;
-    pub use crate::tls::load_server_tls;
+    pub use crate::{server::serve, tls::load_server_tls};
 }
 
 /// Run the Keeper daemon until `SIGINT` / `SIGTERM`.

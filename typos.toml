@@ -1,0 +1,23 @@
+# typos configuration — https://github.com/crate-ci/typos
+#
+# Allow project-specific identifiers and acronyms that look like typos.
+
+[default.extend-words]
+# Proxmox / LXC ecosystem nouns
+pveum = "pveum"
+pvesh = "pvesh"
+pct = "pct"
+# Crates / tooling we reference
+rcgen = "rcgen"
+tonic = "tonic"
+# `keeper` short forms used in CLI / tracing fields
+KEEPR = "KEEPR"
+
+[files]
+extend-exclude = [
+    "Cargo.lock",
+    "*.pem",
+    "*.crt",
+    "*.key",
+    "target/",
+]

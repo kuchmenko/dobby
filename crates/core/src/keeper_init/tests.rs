@@ -1,5 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr};
-use std::os::unix::fs::PermissionsExt;
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    os::unix::fs::PermissionsExt,
+};
 
 use super::*;
 

@@ -31,13 +31,15 @@ doc:
 
 # ── formatting & lints ────────────────────────────────────
 
-# apply rustfmt to the workspace
+# apply rustfmt to the workspace (nightly required for unstable knobs in
+# rustfmt.toml: imports_granularity, group_imports, wrap_comments,
+# format_code_in_doc_comments)
 fmt:
-    cargo fmt --all
+    cargo +nightly fmt --all
 
 # check formatting without modifying (CI)
 fmt-check:
-    cargo fmt --all -- --check
+    cargo +nightly fmt --all -- --check
 
 # run clippy with -D warnings
 clippy:
@@ -90,7 +92,7 @@ update:
 
 # install dev tools referenced by this justfile
 install-dev-tools:
-    cargo install just cargo-audit cargo-deny
+    cargo install just cargo-audit cargo-deny cargo-machete cargo-udeps cargo-semver-checks typos-cli
     @echo
     @echo "Also install 'buf' manually — see https://buf.build/docs/installation"
 
@@ -98,6 +100,22 @@ install-dev-tools:
 audit:
     cargo audit
 
-# check licences + bans (requires deny.toml, added later)
+# check licences + bans (uses deny.toml)
 deny:
     cargo deny check
+
+# detect unused dependencies (fast, lockfile-free)
+machete:
+    cargo machete
+
+# spell-check identifiers + comments (uses typos.toml)
+typos:
+    typos
+
+# detect public-API breaking changes (skips publish=false crates)
+semver:
+    cargo semver-checks check-release --workspace || true
+
+# detect unused dependencies via real build graph (nightly)
+udeps:
+    cargo +nightly udeps --workspace --all-targets

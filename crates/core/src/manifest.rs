@@ -14,8 +14,10 @@
 //! honest about what was in the file versus what the convention layer
 //! filled in.
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -348,6 +350,10 @@ fn apply_app_defaults(app: &mut AppSection) {
     }
 }
 
+// `expect_used` is allowed because the only `.expect()` here guards an
+// invariant established three lines above: `svc.artifact` is set to `Some`
+// before being read.
+#[allow(clippy::expect_used)]
 fn apply_service_defaults(app: &str, name: &str, svc: &mut Service) {
     match svc.kind {
         ServiceKind::Binary => {
@@ -358,6 +364,8 @@ fn apply_service_defaults(app: &str, name: &str, svc: &mut Service) {
                 let artifact = svc
                     .artifact
                     .as_deref()
+                    // Invariant: the `if svc.artifact.is_none()` branch above
+                    // populated `svc.artifact` from `name`, so it is `Some`.
                     .expect("artifact was just populated above");
                 svc.exec_start = Some(format!("/opt/{app}/{name}/current/{artifact}"));
             }

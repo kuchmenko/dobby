@@ -7,8 +7,7 @@
 //!   - per-service systemd unit generation + orchestration
 //!   - per-service UID allocation (60000-60999, persisted in `elf.toml`)
 //!   - health checks (http, exec, process-alive via cgroup)
-//!   - secret retrieval from Keeper at boot (`RequestSecrets`) →
-//!     per-service tmpfs env files
+//!   - secret retrieval from Keeper at boot (`RequestSecrets`) → per-service tmpfs env files
 //!
 //! See issue #1 § High-level architecture. Phase 1 delivers: `run()`
 //! stub, mTLS gRPC server binding, handshake RPC.

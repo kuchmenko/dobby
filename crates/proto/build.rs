@@ -3,6 +3,9 @@
 // thread-safe. In a build.rs at startup, nothing else is touching env vars;
 // the call is safe in this context.
 #![allow(unsafe_code)]
+// Build scripts communicate with cargo via stdout (`cargo:rerun-if-changed=…`)
+// and panic on errors — both contradict the workspace lint baseline.
+#![allow(clippy::print_stdout, clippy::expect_used)]
 
 use std::path::PathBuf;
 
