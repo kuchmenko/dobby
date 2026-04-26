@@ -8,9 +8,10 @@ rust-version.workspace = true
 description = "Dobby — reverse proxy (HTTP/1.1 + WebSocket), in-process under Keeper"
 publish = false
 
+# Phase 3c placeholder — body is currently a `#![allow(dead_code)]` lib
+# with no exported symbols. Real deps (hyper, tower, http, …) come back
+# when the route table + WebSocket upgrade path land.
 [dependencies]
-anyhow = { workspace = true }
-tracing = { workspace = true }
 
 [lints]
 workspace = true

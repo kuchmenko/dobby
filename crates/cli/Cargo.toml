@@ -11,7 +11,6 @@ publish = false
 [dependencies]
 dobby-core = { workspace = true }
 dobby-keeper = { workspace = true }
-dobby-elf = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

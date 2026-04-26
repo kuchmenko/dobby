@@ -9,13 +9,10 @@ description = "Dobby — Elf daemon (runs inside each managed LXC)"
 publish = false
 
 [dependencies]
-dobby-core = { workspace = true }
-dobby-proto = { workspace = true }
-dobby-runtime = { workspace = true }
+# Phase 1 stub — only `anyhow` is wired through to the unimplemented entry
+# point. Real deps (dobby-core, dobby-proto, dobby-runtime, tokio, tonic,
+# tracing) come back as the daemon body lands per phase.
 anyhow = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "fs", "signal", "sync", "time"] }
-tonic = { workspace = true }
-tracing = { workspace = true }
 
 [lints]
 workspace = true

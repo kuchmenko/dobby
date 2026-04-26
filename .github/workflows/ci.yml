@@ -197,18 +197,20 @@ jobs:
       - uses: actions/checkout@v4
       - uses: crate-ci/typos@master
 
-  semver-checks:
-    name: Cargo Semver Checks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # `publish = false` workspaces have no published baseline; the action
-      # detects this and skips affected crates rather than failing.
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          rust-toolchain: manual
+  # `cargo-semver-checks` requires at least one library target with a
+  # crates.io baseline to compare against. Every crate in this workspace is
+  # `publish = false`, so the action filters them all out and exits 1 with
+  # "no crates with library targets selected". Re-enable this job once any
+  # crate becomes publish = true and has been released.
+  #
+  # semver-checks:
+  #   name: Cargo Semver Checks
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: Swatinem/rust-cache@v2
+  #     - uses: obi1kenobi/cargo-semver-checks-action@v2
 
   udeps:
     name: Cargo Udeps (nightly)
