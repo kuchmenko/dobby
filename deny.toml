@@ -11,15 +11,17 @@ no-default-features = false
 
 [advisories]
 version = 2
-# Vulnerabilities (the default key) stay at fail-the-build. The two
-# advisory categories below default to "all" / "workspace" in v2 (i.e.
-# also fail) — common in transitive deps (crates entering RUSTSEC
-# limbo), so we explicitly downgrade to warn to avoid breaking CI on
-# every upstream advisory bump that isn't actually a security issue.
-unmaintained = "warn"
-unsound      = "warn"
-yanked       = "warn"
-ignore       = []
+# Vulnerabilities fail the build (default behaviour, not configurable
+# per-key in v2 — severity comes from the advisory itself).
+#
+# `unmaintained` and `unsound` default to `"all"` / `"workspace"` (scope
+# filters, NOT severity — v2 schema accepts only `"all" | "workspace" |
+# "transitive" | "none"`). Currently `"all"` for both is fine because
+# no unmaintained/unsound advisories hit our graph. If/when one shows
+# up in a transitive dep we don't control, narrow the scope to
+# `"workspace"` here, or add the specific RUSTSEC ID to `ignore`.
+yanked = "warn"
+ignore = []
 
 [licenses]
 version = 2
