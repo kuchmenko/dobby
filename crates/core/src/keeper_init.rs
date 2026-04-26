@@ -24,16 +24,21 @@
 //! passphrase) live in the CLI layer and their persistence lands in
 //! separate PRs once the age-encrypted secret pipeline is in place.
 
-use std::fs::{self, File};
-use std::net::IpAddr;
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::{
+    fs::{self, File},
+    net::IpAddr,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 
 use zeroize::Zeroizing;
 
-use crate::keeper_config::{KeeperConfig, Network};
-use crate::state::{self, AtomicWriteError};
-use crate::{bootstrap_token, tls};
+use crate::{
+    bootstrap_token,
+    keeper_config::{KeeperConfig, Network},
+    state::{self, AtomicWriteError},
+    tls,
+};
 
 /// Input to [`init`].
 #[derive(Debug, Clone)]
@@ -395,10 +400,10 @@ fn ensure_target_dir(dir: &Path, force: bool) -> Result<(), InitError> {
             // matter for correctness (each fsync is independent),
             // but we go shallow-first for deterministic test output.
             for created in missing.iter().rev() {
-                if let Some(parent) = created.parent() {
-                    if !parent.as_os_str().is_empty() {
-                        fsync_dir(parent)?;
-                    }
+                if let Some(parent) = created.parent()
+                    && !parent.as_os_str().is_empty()
+                {
+                    fsync_dir(parent)?;
                 }
             }
             Ok(())

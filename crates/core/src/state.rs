@@ -10,11 +10,13 @@
 //!
 //! See issue #1 § State management.
 
-use std::fs::{OpenOptions, Permissions};
-use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs::{OpenOptions, Permissions},
+    io::Write,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 /// Errors that can arise during an atomic write.
 #[derive(Debug, thiserror::Error)]
@@ -38,9 +40,8 @@ pub enum AtomicWriteError {
 /// Write `contents` atomically to `target` with permission bits `mode`.
 ///
 /// Steps:
-/// 1. Create a tempfile `<target>.tmp-<pid>-<ts>` in the same directory,
-///    opened with `create_new` (refuses to clobber) and the requested
-///    `mode`.
+/// 1. Create a tempfile `<target>.tmp-<pid>-<ts>` in the same directory, opened with `create_new`
+///    (refuses to clobber) and the requested `mode`.
 /// 2. Write `contents` in full.
 /// 3. `fsync(2)` the tempfile to flush buffers to disk.
 /// 4. `rename(2)` the tempfile over `target` — atomic per POSIX.
@@ -64,11 +65,10 @@ pub fn atomic_write(target: &Path, contents: &[u8], mode: u32) -> Result<(), Ato
     // tricks: `f` is closed naturally by `Drop` at the end of the block.
     //
     // Cleanup contract:
-    //   - On error at any step (open / write / sync / rename), `tmp`
-    //     may exist as an orphan → we remove it best-effort.
-    //   - On success, `rename(2)` moved the inode from `tmp` to
-    //     `target`; `tmp` no longer exists, so there's nothing to clean.
-    //     That's why the cleanup branch is error-only.
+    //   - On error at any step (open / write / sync / rename), `tmp` may exist as an orphan → we
+    //     remove it best-effort.
+    //   - On success, `rename(2)` moved the inode from `tmp` to `target`; `tmp` no longer exists,
+    //     so there's nothing to clean. That's why the cleanup branch is error-only.
     let result = (|| -> Result<(), AtomicWriteError> {
         // Open with a restrictive 0o600 first. `OpenOptions::mode` is
         // subject to the process's `umask(2)`: under a hardened umask

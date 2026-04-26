@@ -3,8 +3,7 @@
 //! All command logic lives in the `dobby-cli` crate. This binary's
 //! only jobs are:
 //!   1. Parse argv.
-//!   2. Initialise `tracing_subscriber` from `RUST_LOG` (defaulting to
-//!      `info`).
+//!   2. Initialise `tracing_subscriber` from `RUST_LOG` (defaulting to `info`).
 //!   3. Hand the parsed command to `dobby_cli::dispatch`.
 
 use anyhow::Result;

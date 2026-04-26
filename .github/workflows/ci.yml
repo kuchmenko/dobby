@@ -11,7 +11,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
+  # Note: no `RUSTFLAGS: -Dwarnings`. Strict lint enforcement comes from
+  # `[workspace.lints.{rust,clippy}]` in root Cargo.toml — that lets
+  # `pedantic = warn` actually stay at warn instead of being silently
+  # promoted to deny via the rustflags upgrade.
 
 jobs:
   fmt:
@@ -45,10 +48,9 @@ jobs:
         # `cargo clippy` exit would otherwise be masked by `sarif-fmt`
         # exiting 0.
         #
-        # `--force-warn` keeps cognitive_complexity and too_many_lines
-        # at warn level even under the global `RUSTFLAGS: -Dwarnings`
-        # cap. Result: violations surface in SARIF / Code Scanning but
-        # don't fail CI; other lints stay strict.
+        # `--force-warn` keeps cognitive_complexity (nursery, off by default
+        # in workspace) and too_many_lines (pedantic, already warn) visible
+        # in SARIF without changing whether they block CI.
         run: |
           set -eo pipefail
           cargo clippy --workspace --all-targets --message-format=json -- \
@@ -173,10 +175,49 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   msrv:
-    name: MSRV (1.85.0)
+    name: MSRV (1.88.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace
+
+  machete:
+    name: Cargo Machete (unused deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bnjbvr/cargo-machete@main
+
+  typos:
+    name: Typos (spell-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@master
+
+  semver-checks:
+    name: Cargo Semver Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # `publish = false` workspaces have no published baseline; the action
+      # detects this and skips affected crates rather than failing.
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          rust-toolchain: manual
+
+  udeps:
+    name: Cargo Udeps (nightly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-udeps
+      - run: cargo +nightly udeps --workspace --all-targets

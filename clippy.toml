@@ -1,0 +1,16 @@
+# clippy.toml — workspace-wide clippy configuration.
+# Schema: https://doc.rust-lang.org/clippy/lint_configuration.html
+#
+# Restriction lints (unwrap_used, expect_used, dbg_macro, print_stdout/stderr)
+# are denied workspace-wide via [workspace.lints.clippy] in root Cargo.toml.
+# Tests legitimately need these for assertion ergonomics — opt them out here
+# rather than peppering `#[allow(...)]` across every test module.
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true
+allow-print-in-tests = true
+
+# clippy::cognitive_complexity threshold (default 25). Bumped slightly to
+# accommodate routing/setup functions that are inherently linear.
+cognitive-complexity-threshold = 30

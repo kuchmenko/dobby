@@ -1,8 +1,15 @@
 //! `dobby keeper ...` — Keeper daemon lifecycle, bootstrap, backup, restore,
 //! fingerprint display, key rotation. See issue #1 § CLI commands → Setup.
 
-use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
+// CLI commands write user-facing output to stdout. Workspace lints deny
+// `print_stdout` to keep library code on tracing — this module is the
+// designated print-out layer.
+#![allow(clippy::print_stdout)]
+
+use std::{
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+};
 
 use clap::{Args, Subcommand};
 
@@ -32,12 +39,11 @@ fn default_dns_upstream_for(keeper_ip: IpAddr) -> IpAddr {
         // 1.1.1.1
         IpAddr::V4(std::net::Ipv4Addr::new(1, 1, 1, 1))
     } else {
-        // 2606:4700:4700::1111 — Cloudflare DNS over IPv6.
-        IpAddr::V6(
-            "2606:4700:4700::1111"
-                .parse::<std::net::Ipv6Addr>()
-                .unwrap(),
-        )
+        // 2606:4700:4700::1111 — Cloudflare DNS over IPv6. Constructing
+        // from segments avoids a runtime parse + unwrap on a literal.
+        IpAddr::V6(std::net::Ipv6Addr::new(
+            0x2606, 0x4700, 0x4700, 0, 0, 0, 0, 0x1111,
+        ))
     }
 }
 

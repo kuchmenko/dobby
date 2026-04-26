@@ -4,9 +4,16 @@
 //! Keeper-issued CA, and assert `HealthCheck` returns the expected
 //! version + ok status. `Pair` returns `Unimplemented`.
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
-use std::path::Path;
-use std::time::Duration;
+// `allow-unwrap-in-tests` / `allow-expect-in-tests` only catch `#[test]`
+// bodies and `#[cfg(test)]` modules — integration-test helper functions
+// in `tests/*.rs` need an explicit per-file allow.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
+    path::Path,
+    time::Duration,
+};
 
 use dobby_core::keeper_init;
 use dobby_proto::v1::{

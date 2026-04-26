@@ -38,7 +38,7 @@ tracing-subscriber = { workspace = true }
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/kuchmenko/dobby"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [workspace.dependencies]
 # internal crates
@@ -95,10 +95,28 @@ const-hex = "1"
 tempfile = "3"
 
 [workspace.lints.rust]
-unsafe_code = "warn"
+unsafe_code = "deny"
 missing_debug_implementations = "warn"
+missing_docs = "warn"
 rust_2018_idioms = { level = "warn", priority = -1 }
+unused_must_use = "deny"
+unused_imports = "deny"
+dead_code = "deny"
 
 [workspace.lints.clippy]
-# Default lint group. Pedantic/nursery stay opt-in via ad-hoc `-W` flags.
+# `priority = -1` lets specific lints override group settings at default
+# priority 0 — without it, group + per-lint at the same priority is a hard
+# error in Cargo.
 all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Allow-list — pedantic lints that fight idiomatic code.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+# Panic policy: no panicking calls in non-test, non-build code.
+# Tests and build scripts opt out via clippy.toml + per-crate lint config.
+unwrap_used = "deny"
+expect_used = "deny"
+# No debug-leftovers in committed code.
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
