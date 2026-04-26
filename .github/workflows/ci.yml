@@ -199,14 +199,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bnjbvr/cargo-machete@main
+      # Pinned to commit SHA per GitHub hardening guidance — branch refs
+      # (`@main`) execute whatever upstream HEAD is at run time and would
+      # land an upstream regression / compromise straight in our CI.
+      - uses: bnjbvr/cargo-machete@7959c845782fed02ee69303126d4a12d64f1db18 # v0.9.1
 
   typos:
     name: Typos (spell-check)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: crate-ci/typos@master
+      - uses: crate-ci/typos@02ea592e44b3a53c302f697cddca7641cd051c3d # v1.45.0
 
   # `cargo-semver-checks` requires at least one library target with a
   # crates.io baseline to compare against. Every crate in this workspace is
