@@ -33,6 +33,10 @@ allow = [
     "MPL-2.0",
     "Zlib",
     "OpenSSL",
+    # CDLA-Permissive-2.0 — used by `webpki-roots` to ship Mozilla's CA
+    # bundle as data. OSI-recognised permissive licence; no copyleft on
+    # downstream code, only attribution.
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.93
 
@@ -47,6 +51,11 @@ name = "ring"
 # Warn (don't deny) — duplicates are unavoidable on a fresh dep graph.
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace-internal `path = "..."` deps don't carry a version constraint
+# and read as wildcards to cargo-deny's parser. They're not the kind of
+# wildcard the lint targets (uncontrolled crates.io ranges); allow them
+# explicitly so the lint stays useful for real wildcards.
+allow-wildcard-paths = true
 highlight = "all"
 allow = []
 deny = []

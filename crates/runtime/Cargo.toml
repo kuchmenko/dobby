@@ -8,9 +8,10 @@ rust-version.workspace = true
 description = "Dobby — native OCI container runtime (Phase 3 scope)"
 publish = false
 
+# Phase 3 placeholder — body is currently a `#![allow(dead_code)]` lib
+# with no exported symbols. Real deps (nix for raw syscalls, oci-distribution
+# for image pull, etc.) come back when the runtime body lands.
 [dependencies]
-anyhow = { workspace = true }
-tracing = { workspace = true }
 
 [lints]
 workspace = true

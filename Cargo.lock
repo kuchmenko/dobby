@@ -400,7 +400,6 @@ dependencies = [
  "clap",
  "dobby-cli",
  "tokio",
- "tracing",
  "tracing-subscriber",
 ]
 
@@ -411,7 +410,6 @@ dependencies = [
  "anyhow",
  "clap",
  "dobby-core",
- "dobby-elf",
  "dobby-keeper",
  "tokio",
  "tracing",
@@ -429,7 +427,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
- "tracing",
  "zeroize",
 ]
 
@@ -438,19 +435,12 @@ name = "dobby-elf"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "dobby-core",
- "dobby-proto",
- "dobby-runtime",
- "tokio",
- "tonic",
- "tracing",
 ]
 
 [[package]]
 name = "dobby-keeper"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "dobby-core",
  "dobby-proto",
  "prost",
@@ -478,18 +468,10 @@ dependencies = [
 [[package]]
 name = "dobby-proxy"
 version = "0.0.0"
-dependencies = [
- "anyhow",
- "tracing",
-]
 
 [[package]]
 name = "dobby-runtime"
 version = "0.0.0"
-dependencies = [
- "anyhow",
- "tracing",
-]
 
 [[package]]
 name = "dunce"
