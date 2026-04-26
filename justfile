@@ -50,10 +50,12 @@ buf-lint:
     buf lint
 
 # check proto backwards compatibility against the latest git tag
-# (no-op until a tag exists — safe to call on a fresh repo)
+# (no-op until a tag exists — safe to call on a fresh repo).
+# `latest` is NOT a magic keyword in buf — it'd be read as a literal tag
+# name. Capture the actual most-recent tag via `git describe`.
 buf-breaking:
-    @if git describe --tags --abbrev=0 >/dev/null 2>&1; then \
-        buf breaking --against '.git#tag=latest' ; \
+    @if latest_tag=$(git describe --tags --abbrev=0 2>/dev/null); then \
+        buf breaking --against ".git#tag=${latest_tag}" ; \
     else \
         echo "no git tag yet — skipping buf breaking check" ; \
     fi
