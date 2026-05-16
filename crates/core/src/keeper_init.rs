@@ -12,7 +12,7 @@
 //! │   ├── host.crt                      (0644)
 //! │   └── host.key                      (0600)
 //! └── secrets/
-//!     └── bootstrap_token               (0600)
+//!     └── bootstrap_token               (0600, sha256 hash; plaintext printed once)
 //! ```
 //!
 //! The caller passes a fully-specified [`Request`] — there is no
@@ -117,6 +117,10 @@ pub enum InitError {
     #[error("bootstrap token generation: {0}")]
     Token(#[from] bootstrap_token::TokenError),
 
+    /// Bootstrap token hash generation failed.
+    #[error("bootstrap token hash generation: {0}")]
+    TokenHash(#[from] bootstrap_token::TokenFormatError),
+
     /// `keeper.toml` serialisation failed (should be impossible given
     /// the schema — included for totality).
     #[error("serialising keeper.toml: {0}")]
@@ -207,9 +211,10 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
         tls_material.host_key_pem.as_bytes(),
         0o600,
     )?;
+    let token_hash = bootstrap_token::hash_for_storage(&token)?;
     state::atomic_write(
         &secrets_dir.join("bootstrap_token"),
-        token.as_bytes(),
+        token_hash.as_bytes(),
         0o600,
     )?;
 

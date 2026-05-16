@@ -15,8 +15,11 @@ thiserror = { workspace = true }
 zeroize = { workspace = true }
 rcgen = { workspace = true }
 rand = { workspace = true }
+ed25519-dalek = { workspace = true }
+subtle = { workspace = true }
 sha2 = { workspace = true }
 const-hex = { workspace = true }
+base64 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

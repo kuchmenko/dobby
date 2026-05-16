@@ -15,7 +15,7 @@ fn generated_token_has_expected_shape() {
     assert!(
         hex_part
             .chars()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+            .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
     );
 }
 
@@ -34,4 +34,37 @@ fn no_trailing_whitespace_or_control_chars() {
     let s: &str = &t;
     assert!(s.chars().all(|c| !c.is_control()));
     assert_eq!(s.trim(), s);
+}
+
+#[test]
+fn hash_verifies_original_token_only() {
+    let token = generate().unwrap();
+    let stored = hash_for_storage(&token).unwrap();
+
+    assert!(stored.starts_with(TOKEN_HASH_PREFIX));
+    assert!(verify_against_hash(&token, &stored).unwrap());
+
+    let other = generate().unwrap();
+    assert!(!verify_against_hash(&other, &stored).unwrap());
+}
+
+#[test]
+fn hash_rejects_plaintext_token_shape_errors() {
+    assert!(matches!(
+        hash_for_storage("wrong"),
+        Err(TokenFormatError::InvalidToken)
+    ));
+    assert!(matches!(
+        hash_for_storage("dby_boot_ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCDEF"),
+        Err(TokenFormatError::InvalidToken)
+    ));
+}
+
+#[test]
+fn verify_rejects_hash_shape_errors() {
+    let token = generate().unwrap();
+    assert!(matches!(
+        verify_against_hash(&token, "dby_boot_plaintext"),
+        Err(TokenFormatError::InvalidHash)
+    ));
 }

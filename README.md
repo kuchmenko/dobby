@@ -9,8 +9,9 @@ issue: **[kuchmenko/dobby#1](https://github.com/kuchmenko/dobby/issues/1)**.
 
 ## Status
 
-Phase 1 (Foundation) — scaffolding. Nothing is wired yet; every subcommand
-returns `unimplemented` until its phase lands.
+Phase 1 (Foundation) — core scaffolding plus the first real Keeper bootstrap path.
+`dobby keeper init`, `dobby keeper start`, `dobby keeper show-fingerprint`, and
+`dobby pair` are wired; later deployment subcommands still return `unimplemented`.
 
 ## Quickstart
 
@@ -20,6 +21,14 @@ just help            # dobby --help, full CLI surface
 just check           # fast compile check across the workspace
 just install-dev-tools  # install local Cargo tools used by CI
 just ci                 # everything CI runs (fmt + clippy + coverage + buf + audit + deny + msrv + machete + typos + udeps)
+```
+
+Keeper bootstrap shape:
+
+```sh
+dobby keeper init --keeper-ip 10.0.0.50 --gateway 10.0.0.1
+dobby keeper show-fingerprint
+dobby pair 10.0.0.50:8443 --fingerprint <sha256> --token <dby_boot_...>
 ```
 
 ## Licence

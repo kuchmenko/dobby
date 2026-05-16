@@ -11,8 +11,20 @@ publish = false
 [dependencies]
 dobby-core = { workspace = true }
 dobby-keeper = { workspace = true }
+dobby-proto = { workspace = true }
 anyhow = { workspace = true }
 clap = { workspace = true }
+const-hex = { workspace = true }
+http = { workspace = true }
+hyper-util = { workspace = true }
+tokio = { workspace = true, features = ["net"] }
+tokio-rustls = { workspace = true }
+tonic = { workspace = true }
+tower-service = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
 
 [lints]
 workspace = true

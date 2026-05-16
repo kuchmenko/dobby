@@ -100,7 +100,7 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         C::Keeper(cmd) => commands::keeper::run(cmd).await,
         C::Elf(cmd) => commands::elf::run(&cmd),
-        C::Pair(args) => commands::pair::run(args),
+        C::Pair(args) => commands::pair::run(args).await,
         C::Register(args) => commands::register::run(args),
         C::Check(args) => commands::check::run(args),
         C::Init(args) => commands::init::run(args),

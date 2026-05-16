@@ -42,14 +42,12 @@ fn writes_expected_layout() {
         );
     }
 
-    // Token round-trips onto disk. `assert_eq!` would print both
-    // sides via Debug on mismatch, leaking secret material into CI
-    // logs; compare with an explicit branch that panics with a
-    // generic message instead.
+    // Disk stores only a hash, not the plaintext token printed once
+    // to the operator.
     let on_disk = fs::read_to_string(tmp.path().join("secrets/bootstrap_token")).unwrap();
+    assert!(on_disk.starts_with(crate::bootstrap_token::TOKEN_HASH_PREFIX));
     assert!(
-        on_disk == **outcome.bootstrap_token,
-        "bootstrap token on disk diverges from value returned by init"
+        crate::bootstrap_token::verify_against_hash(&outcome.bootstrap_token, &on_disk).unwrap()
     );
 }
 
@@ -174,6 +172,10 @@ fn fingerprint_is_reported_and_matches_host_cert() {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
         "fingerprint must be lowercase hex"
     );
+
+    let host_cert = fs::read(tmp.path().join("tls/host.crt")).unwrap();
+    let from_disk = crate::tls::fingerprint_sha256_hex_from_pem(&host_cert).unwrap();
+    assert_eq!(from_disk, outcome.tls_fingerprint_sha256);
 }
 
 #[test]

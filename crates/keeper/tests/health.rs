@@ -2,7 +2,7 @@
 //! tonic server bound on an ephemeral port (so concurrent test runs
 //! don't clash on `:8443`), connect a client that trusts the
 //! Keeper-issued CA, and assert `HealthCheck` returns the expected
-//! version + ok status. `Pair` returns `Unimplemented`.
+//! version + ok status. `Pair` registers the first workstation key.
 
 // `allow-unwrap-in-tests` / `allow-expect-in-tests` only catch `#[test]`
 // bodies and `#[cfg(test)]` modules — integration-test helper functions
@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 
-use dobby_core::keeper_init;
+use dobby_core::{auth, keeper_init};
 use dobby_proto::v1::{
     KeeperServiceHealthCheckRequest, PairRequest, keeper_service_client::KeeperServiceClient,
     status::Code as StatusCode,
@@ -72,20 +72,21 @@ async fn build_client_for_dir(
 }
 
 #[tokio::test]
-async fn health_check_round_trip() {
+async fn health_and_pair_round_trip() {
     let tmp = tempfile::tempdir().unwrap();
     let bind_addr = pick_port();
     let keeper_ip = bind_addr.ip();
 
-    keeper_init::init(&keeper_init_request(tmp.path(), keeper_ip)).expect("init");
+    let init = keeper_init::init(&keeper_init_request(tmp.path(), keeper_ip)).expect("init");
 
     let tls_config = dobby_keeper::test_support::load_server_tls(tmp.path()).expect("tls");
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
     let server_handle = tokio::spawn({
         let tls = tls_config.clone();
+        let tmp_path = tmp.path().to_path_buf();
         async move {
-            dobby_keeper::test_support::serve(bind_addr, tls, async {
+            dobby_keeper::test_support::serve(bind_addr, tls, tmp_path, async {
                 let _ = shutdown_rx.await;
             })
             .await
@@ -110,15 +111,27 @@ async fn health_check_round_trip() {
     let s = resp.status.expect("status");
     assert_eq!(s.code, StatusCode::Ok as i32);
 
-    // Pair stub.
-    let err = client
+    let keypair = auth::WorkstationKeypair::generate().unwrap();
+    let pubkey = keypair.public_key_bytes();
+    let fingerprint = dobby_core::tls::parse_fingerprint_hex(&init.tls_fingerprint_sha256).unwrap();
+    let challenge = auth::pair_challenge(&fingerprint, &pubkey);
+    let signature = keypair.sign(&challenge);
+
+    let pair = client
         .pair(PairRequest {
-            workstation_pubkey: vec![0u8; 32],
-            bootstrap_token: "dby_boot_xxx".into(),
+            workstation_pubkey: pubkey.to_vec(),
+            bootstrap_token: init.bootstrap_token.to_string(),
+            tls_fingerprint_sha256: fingerprint.to_vec(),
+            workstation_signature: signature.to_vec(),
         })
         .await
-        .expect_err("pair should be unimplemented");
-    assert_eq!(err.code(), tonic::Code::Unimplemented);
+        .expect("pair call")
+        .into_inner();
+    assert_eq!(pair.tls_fingerprint_sha256, fingerprint);
+
+    let registry = auth::load_keeper_registry(&tmp.path().join("auth/workstations.toml")).unwrap();
+    assert!(registry.contains_public_key(&pubkey));
+    assert!(registry.bootstrap_token_consumed);
 
     let _ = shutdown_tx.send(());
     server_handle.await.expect("join").expect("serve");

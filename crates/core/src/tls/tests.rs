@@ -28,6 +28,26 @@ fn fingerprint_is_lowercase_hex_of_length_64() {
 }
 
 #[test]
+fn fingerprint_round_trips_from_persisted_pem() {
+    let a = generate(sample_ip()).unwrap();
+    let from_pem = fingerprint_sha256_hex_from_pem(a.host_cert_pem.as_bytes()).unwrap();
+    assert_eq!(from_pem, a.host_fingerprint_sha256);
+
+    let parsed = parse_fingerprint_hex(&from_pem).unwrap();
+    assert_eq!(const_hex::encode(parsed), from_pem);
+}
+
+#[test]
+fn fingerprint_parser_rejects_uppercase() {
+    let a = generate(sample_ip()).unwrap();
+    let upper = a.host_fingerprint_sha256.to_uppercase();
+    assert!(matches!(
+        parse_fingerprint_hex(&upper),
+        Err(TlsError::InvalidFingerprintHex)
+    ));
+}
+
+#[test]
 fn each_generation_produces_distinct_keys() {
     let a = generate(sample_ip()).unwrap();
     let b = generate(sample_ip()).unwrap();
