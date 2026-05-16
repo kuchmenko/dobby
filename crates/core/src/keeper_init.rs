@@ -1,8 +1,7 @@
 //! `dobby keeper init` — orchestrator.
 //!
-//! Composes [`tls`](crate::tls), [`bootstrap_token`](crate::bootstrap_token),
-//! and [`keeper_config`](crate::keeper_config) into the on-disk layout
-//! the Keeper daemon expects:
+//! Composes [`tls`], [`bootstrap_token`], and [`keeper_config`](crate::keeper_config) into the
+//! on-disk layout the Keeper daemon expects:
 //!
 //! ```text
 //! <dir>/
@@ -89,17 +88,24 @@ pub enum InitError {
         "network config family mismatch: keeper_ip is {keeper_ip_family}, but {field} = {field_value:?} is {field_family}"
     )]
     FamilyMismatch {
+        /// Field whose address family disagrees with `keeper_ip`.
         field: &'static str,
+        /// Raw configured value of `field`.
         field_value: String,
+        /// Address family of `keeper_ip`.
         keeper_ip_family: &'static str,
+        /// Address family inferred from `field_value`.
         field_family: &'static str,
     },
 
     /// Malformed `subnet` or `static_range` string.
     #[error("{field} = {value:?} is not a valid {expected}")]
     MalformedNetworkField {
+        /// Field that failed syntax validation.
         field: &'static str,
+        /// Raw configured value.
         value: String,
+        /// Human-readable expected shape.
         expected: &'static str,
     },
 
@@ -123,8 +129,11 @@ pub enum InitError {
     /// Ambient filesystem error (mkdir, readdir).
     #[error("{op} on {path}: {source}")]
     Io {
+        /// Filesystem operation that failed.
         op: &'static str,
+        /// Path the failed operation targeted.
         path: PathBuf,
+        /// Underlying filesystem error.
         #[source]
         source: std::io::Error,
     },

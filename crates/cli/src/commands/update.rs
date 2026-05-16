@@ -21,6 +21,6 @@ pub struct UpdateArgs {
     pub rollback_self: bool,
 }
 
-pub async fn run(_args: UpdateArgs) -> anyhow::Result<()> {
+pub fn run(_args: UpdateArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 7", "dobby update"))
 }

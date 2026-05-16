@@ -15,6 +15,6 @@ pub struct DestroyArgs {
     pub yes: bool,
 }
 
-pub async fn run(_args: DestroyArgs) -> anyhow::Result<()> {
+pub fn run(_args: DestroyArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 2", "dobby destroy"))
 }

@@ -20,6 +20,6 @@ pub struct ExecArgs {
     pub command: Vec<String>,
 }
 
-pub async fn run(_args: ExecArgs) -> anyhow::Result<()> {
+pub fn run(_args: ExecArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 4", "dobby exec"))
 }

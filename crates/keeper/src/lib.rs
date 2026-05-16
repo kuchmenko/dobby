@@ -12,7 +12,7 @@
 //!   - mDNS advertisement
 //!   - embedded `.dobby` DNS server + source-IP allowlist
 //!   - reverse proxy
-//!   - sd_notify(READY=1) + WATCHDOG=1 event loop
+//!   - `sd_notify(READY=1)` + `WATCHDOG=1` event loop
 //!   - ed25519 signature verification on incoming CLI requests
 //!   - real Pair logic (bootstrap-token verification + workstation pubkey registry)
 

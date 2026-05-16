@@ -47,9 +47,10 @@ fn writes_expected_layout() {
     // logs; compare with an explicit branch that panics with a
     // generic message instead.
     let on_disk = fs::read_to_string(tmp.path().join("secrets/bootstrap_token")).unwrap();
-    if on_disk != **outcome.bootstrap_token {
-        panic!("bootstrap token on disk diverges from value returned by init");
-    }
+    assert!(
+        on_disk == **outcome.bootstrap_token,
+        "bootstrap token on disk diverges from value returned by init"
+    );
 }
 
 #[test]

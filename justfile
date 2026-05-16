@@ -25,6 +25,10 @@ build-release:
 test:
     cargo test --workspace --all-targets
 
+# run the CI coverage command locally (requires cargo-llvm-cov)
+coverage:
+    cargo llvm-cov --workspace --all-targets --lcov --output-path lcov.info
+
 # generate (but don't open) rustdoc for all crates
 doc:
     cargo doc --workspace --no-deps
@@ -41,9 +45,11 @@ fmt:
 fmt-check:
     cargo +nightly fmt --all -- --check
 
-# run clippy with -D warnings
+# run clippy with the same blocking/non-blocking lint split as CI
 clippy:
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets -- \
+        -D warnings \
+        --force-warn=clippy::cognitive_complexity
 
 # lint the proto files (requires `buf` on PATH)
 buf-lint:
@@ -62,11 +68,18 @@ buf-breaking:
 
 # ── composite / CI ────────────────────────────────────────
 
+# proto checks from the CI Buf job
+buf: buf-lint buf-breaking
+
+# MSRV compile gate from CI
+msrv:
+    cargo +1.88.0 check --workspace
+
 # everything CI runs, in one shot
-ci: fmt-check clippy check test buf-lint buf-breaking
+ci: fmt-check clippy coverage buf audit deny msrv machete typos udeps
 
 # pre-commit subset — fast feedback before commit
-pre-commit: fmt clippy check
+pre-commit: fmt clippy check test
 
 # ── dev run ───────────────────────────────────────────────
 
@@ -94,7 +107,7 @@ update:
 
 # install dev tools referenced by this justfile
 install-dev-tools:
-    cargo install just cargo-audit cargo-deny cargo-machete cargo-udeps cargo-semver-checks typos-cli
+    cargo install just cargo-audit cargo-deny cargo-llvm-cov cargo-machete cargo-udeps cargo-semver-checks typos-cli
     @echo
     @echo "Also install 'buf' manually — see https://buf.build/docs/installation"
 

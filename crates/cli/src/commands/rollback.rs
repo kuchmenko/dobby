@@ -14,6 +14,6 @@ pub struct RollbackArgs {
     pub service: Option<String>,
 }
 
-pub async fn run(_args: RollbackArgs) -> anyhow::Result<()> {
+pub fn run(_args: RollbackArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 2", "dobby rollback"))
 }

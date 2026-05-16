@@ -2,8 +2,7 @@
 //!
 //! The top-level `dobby` binary (at workspace root) calls into this
 //! crate via [`dispatch`] after initialising tracing. Each subcommand
-//! lives in its own module under [`commands`] and returns an
-//! `anyhow::Result<()>`.
+//! lives in an internal command module and returns an `anyhow::Result<()>`.
 //!
 //! Phase 1 scope: the full UX surface is wired (every command from
 //! issue #1 is visible in `dobby --help`), but nearly every handler
@@ -14,7 +13,7 @@
 
 use clap::{Parser, Subcommand};
 
-pub mod commands;
+mod commands;
 
 /// Top-level CLI parser.
 #[derive(Debug, Parser)]
@@ -29,12 +28,12 @@ pub mod commands;
 )]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Command,
+    command: Command,
 }
 
 /// Top-level subcommands. Keep in sync with issue #1 § CLI commands.
 #[derive(Debug, Subcommand)]
-pub enum Command {
+enum Command {
     /// Keeper daemon lifecycle, bootstrap, backup/restore, key rotation.
     #[command(subcommand)]
     Keeper(commands::keeper::KeeperCommand),
@@ -100,22 +99,22 @@ pub async fn dispatch(cli: Cli) -> anyhow::Result<()> {
     use Command as C;
     match cli.command {
         C::Keeper(cmd) => commands::keeper::run(cmd).await,
-        C::Elf(cmd) => commands::elf::run(cmd).await,
-        C::Pair(args) => commands::pair::run(args).await,
-        C::Register(args) => commands::register::run(args).await,
-        C::Check(args) => commands::check::run(args).await,
-        C::Init(args) => commands::init::run(args).await,
-        C::Destroy(args) => commands::destroy::run(args).await,
-        C::Scale(args) => commands::scale::run(args).await,
-        C::Push(args) => commands::push::run(args).await,
-        C::Rollback(args) => commands::rollback::run(args).await,
-        C::Watch(cmd) => commands::watch::run(cmd).await,
-        C::Secrets(cmd) => commands::secrets::run(cmd).await,
-        C::Status(args) => commands::status::run(args).await,
-        C::Exec(args) => commands::exec::run(args).await,
-        C::Logs(args) => commands::logs::run(args).await,
-        C::Token(cmd) => commands::token::run(cmd).await,
-        C::Update(args) => commands::update::run(args).await,
-        C::Metrics(args) => commands::metrics::run(args).await,
+        C::Elf(cmd) => commands::elf::run(&cmd),
+        C::Pair(args) => commands::pair::run(args),
+        C::Register(args) => commands::register::run(args),
+        C::Check(args) => commands::check::run(args),
+        C::Init(args) => commands::init::run(args),
+        C::Destroy(args) => commands::destroy::run(args),
+        C::Scale(args) => commands::scale::run(args),
+        C::Push(args) => commands::push::run(args),
+        C::Rollback(args) => commands::rollback::run(args),
+        C::Watch(cmd) => commands::watch::run(&cmd),
+        C::Secrets(cmd) => commands::secrets::run(&cmd),
+        C::Status(args) => commands::status::run(args),
+        C::Exec(args) => commands::exec::run(args),
+        C::Logs(args) => commands::logs::run(args),
+        C::Token(cmd) => commands::token::run(&cmd),
+        C::Update(args) => commands::update::run(args),
+        C::Metrics(args) => commands::metrics::run(args),
     }
 }

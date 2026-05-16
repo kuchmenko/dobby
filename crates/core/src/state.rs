@@ -30,8 +30,11 @@ pub enum AtomicWriteError {
     /// Underlying filesystem error. `op` describes the step.
     #[error("{op} failed on {path}: {source}")]
     Io {
+        /// Filesystem operation that failed.
         op: &'static str,
+        /// Path the failed operation targeted.
         path: PathBuf,
+        /// Underlying filesystem error.
         #[source]
         source: std::io::Error,
     },
@@ -143,8 +146,7 @@ fn tmp_name(target: &std::ffi::OsStr) -> std::ffi::OsString {
     s.push("-");
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
+        .map_or(0, |d| d.as_nanos());
     s.push(nanos.to_string());
     s
 }

@@ -20,6 +20,6 @@ pub struct RegisterArgs {
     pub port: Option<u16>,
 }
 
-pub async fn run(_args: RegisterArgs) -> anyhow::Result<()> {
+pub fn run(_args: RegisterArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 1", "dobby register"))
 }

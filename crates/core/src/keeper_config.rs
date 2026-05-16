@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct KeeperConfig {
+    /// Network settings used by Keeper, DNS, proxy, and LXC IP allocation.
     pub network: Network,
     // TODO(phase-1+): proxmox, registry, watcher, dns, timeouts, backup, ...
 }

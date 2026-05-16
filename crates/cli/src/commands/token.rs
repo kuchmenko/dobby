@@ -29,7 +29,7 @@ pub struct RevokeArgs {
     pub name_or_fingerprint: String,
 }
 
-pub async fn run(cmd: TokenCommand) -> anyhow::Result<()> {
+pub fn run(cmd: &TokenCommand) -> anyhow::Result<()> {
     let phase = "Phase 4";
     match cmd {
         TokenCommand::Create(_) => Err(not_yet(phase, "dobby token create")),

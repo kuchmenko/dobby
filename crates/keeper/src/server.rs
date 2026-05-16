@@ -45,7 +45,9 @@ pub enum ServerError {
     /// kernel out of resources).
     #[error("installing {signal} handler: {source}")]
     Signal {
+        /// Signal handler that failed to install.
         signal: &'static str,
+        /// Underlying OS error from `sigaction(2)` registration.
         #[source]
         source: std::io::Error,
     },
