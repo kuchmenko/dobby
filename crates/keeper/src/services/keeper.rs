@@ -10,15 +10,17 @@ use dobby_proto::v1::{
     KeeperServiceHealthCheckRequest, KeeperServiceHealthCheckResponse, PairRequest, PairResponse,
     Status as PbStatus, Version, keeper_service_server::KeeperService, status::Code as StatusCode,
 };
+use tokio::sync::Mutex;
 use tonic::{Request, Response, Status};
 use tracing::warn;
 
 /// Paths and identity material required by the Pair RPC.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct PairState {
     tls_fingerprint_sha256: [u8; 32],
     bootstrap_token_path: PathBuf,
     registry_path: PathBuf,
+    pair_lock: Mutex<()>,
 }
 
 /// Concrete `KeeperService`.
@@ -58,6 +60,7 @@ impl KeeperServiceImpl {
             tls_fingerprint_sha256,
             bootstrap_token_path: dir.join("secrets/bootstrap_token"),
             registry_path: dir.join("auth/workstations.toml"),
+            pair_lock: Mutex::new(()),
         }))
     }
 
@@ -119,6 +122,8 @@ impl KeeperService for KeeperServiceImpl {
         let challenge = auth::pair_challenge(&request_fingerprint, &public_key);
         auth::verify_signature(&public_key, &challenge, &signature)
             .map_err(|_| Status::unauthenticated("workstation signature verification failed"))?;
+
+        let _pair_guard = self.pair_state.pair_lock.lock().await;
 
         let mut registry = auth::load_keeper_registry(&self.pair_state.registry_path)
             .map_err(|err| auth_status(&err))?;

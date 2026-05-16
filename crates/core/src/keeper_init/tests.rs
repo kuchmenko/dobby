@@ -34,6 +34,7 @@ fn writes_expected_layout() {
         "tls/host.crt",
         "tls/host.key",
         "secrets/bootstrap_token",
+        "auth/workstations.toml",
     ] {
         assert!(
             tmp.path().join(sub).exists(),
@@ -65,14 +66,16 @@ fn applies_expected_permissions() {
     assert_eq!(mode_of(&tmp.path().join("tls/ca.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("tls/host.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("secrets/bootstrap_token")), 0o600);
+    assert_eq!(mode_of(&tmp.path().join("auth/workstations.toml")), 0o600);
 
     // Dir modes — root, tls/ world-traversable so non-root can
-    // reach the public certs; secrets/ owner-only.
+    // reach the public certs; secrets/ and auth/ owner-only.
     // Note: `req(tmp.path())` reuses the pre-existing tempdir as
     // `dir`, so root-dir-mode normalisation doesn't kick in in
     // this test — see `normalises_root_dir_mode_when_creating`.
     assert_eq!(mode_of(&tmp.path().join("tls")), 0o755);
     assert_eq!(mode_of(&tmp.path().join("secrets")), 0o700);
+    assert_eq!(mode_of(&tmp.path().join("auth")), 0o700);
 }
 
 #[test]
@@ -145,6 +148,27 @@ fn overwrites_with_force() {
     let after = fs::read_to_string(tmp.path().join("keeper.toml")).unwrap();
     assert!(after.contains("keeper_ip"), "post-init content: {after}");
     assert!(!after.starts_with("old"));
+}
+
+#[test]
+fn force_reinit_resets_auth_registry_for_new_bootstrap_token() {
+    let tmp = tempfile::tempdir().unwrap();
+    init(&req(tmp.path())).unwrap();
+
+    let registry_path = tmp.path().join("auth/workstations.toml");
+    let keypair = crate::auth::WorkstationKeypair::generate().unwrap();
+    let mut registry = crate::auth::KeeperAuthRegistry::default();
+    registry.add_public_key(&keypair.public_key_bytes());
+    registry.bootstrap_token_consumed = true;
+    crate::auth::save_keeper_registry(&registry_path, &registry).unwrap();
+
+    let mut r = req(tmp.path());
+    r.force = true;
+    init(&r).unwrap();
+
+    let reset = crate::auth::load_keeper_registry(&registry_path).unwrap();
+    assert!(!reset.bootstrap_token_consumed);
+    assert!(reset.workstations.is_empty());
 }
 
 #[test]

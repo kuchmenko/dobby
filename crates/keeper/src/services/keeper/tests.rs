@@ -12,6 +12,7 @@ fn test_service() -> KeeperServiceImpl {
         tls_fingerprint_sha256: [7u8; 32],
         bootstrap_token_path: PathBuf::from("/tmp/dobby-test-bootstrap-token"),
         registry_path: PathBuf::from("/tmp/dobby-test-workstations.toml"),
+        pair_lock: tokio::sync::Mutex::new(()),
     })
 }
 
@@ -185,4 +186,31 @@ async fn consumed_token_cannot_pair_different_key() {
         .expect_err("different key rejected after consumption");
 
     assert_eq!(err.code(), tonic::Code::Unauthenticated);
+}
+
+#[tokio::test]
+async fn concurrent_pair_requests_consume_token_once() {
+    let tmp = tempfile::tempdir().unwrap();
+    let outcome = keeper_init::init(&init_req(tmp.path())).unwrap();
+    let svc = KeeperServiceImpl::from_dir(tmp.path()).unwrap();
+    let fingerprint =
+        dobby_core::tls::parse_fingerprint_hex(&outcome.tls_fingerprint_sha256).unwrap();
+    let first = auth::WorkstationKeypair::generate().unwrap();
+    let second = auth::WorkstationKeypair::generate().unwrap();
+
+    let first_request = Request::new(pair_request(&first, &fingerprint, &outcome.bootstrap_token));
+    let second_request = Request::new(pair_request(
+        &second,
+        &fingerprint,
+        &outcome.bootstrap_token,
+    ));
+    let (first_result, second_result) =
+        tokio::join!(svc.pair(first_request), svc.pair(second_request));
+
+    let successes = usize::from(first_result.is_ok()) + usize::from(second_result.is_ok());
+    assert_eq!(successes, 1);
+
+    let registry = auth::load_keeper_registry(&tmp.path().join("auth/workstations.toml")).unwrap();
+    assert!(registry.bootstrap_token_consumed);
+    assert_eq!(registry.workstations.len(), 1);
 }
