@@ -21,6 +21,6 @@ pub struct PairArgs {
     pub fingerprint: Option<String>,
 }
 
-pub async fn run(_args: PairArgs) -> anyhow::Result<()> {
+pub fn run(_args: PairArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 1", "dobby pair"))
 }

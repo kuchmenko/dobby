@@ -1,0 +1,8 @@
+# Codecov project policy.
+#
+# Dobby is still in scaffold/Phase-1 bootstrap: many PRs reshape CI,
+# generated code, and command surfaces where patch-line coverage is noisy.
+# Keep coverage upload/reporting, but do not emit a failing per-patch status.
+coverage:
+  status:
+    patch: off

@@ -116,7 +116,7 @@ fn leaves_no_tempfile_on_failure() {
     // Walk the parent dir: no `.target.tmp-*` survived.
     let strays: Vec<_> = std::fs::read_dir(dir.path())
         .unwrap()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .map(|e| e.file_name())
         .filter(|n| n.to_string_lossy().starts_with(".target.tmp-"))
         .collect();

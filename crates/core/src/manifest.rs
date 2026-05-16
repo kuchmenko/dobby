@@ -29,14 +29,18 @@ pub enum ManifestError {
     /// Failed to read the file from disk.
     #[error("reading manifest {path:?}: {source}")]
     Io {
+        /// Manifest path that failed to read.
         path: PathBuf,
+        /// Underlying filesystem error.
         #[source]
         source: std::io::Error,
     },
     /// Failed to parse as TOML / apply struct schema.
     #[error("parsing manifest {path:?}: {source}")]
     Toml {
+        /// Manifest path being parsed.
         path: PathBuf,
+        /// Underlying TOML deserialisation error.
         #[source]
         source: toml::de::Error,
     },
@@ -65,8 +69,11 @@ pub fn parse_str(raw: &str, path: &Path) -> Result<Manifest, ManifestError> {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
+    /// Application identity and release-watcher settings.
     pub app: AppSection,
 
+    /// LXC resource template for managed apps. Absent for manifests that only
+    /// validate service shape without provisioning a container.
     #[serde(default)]
     pub container: Option<ContainerSection>,
 
@@ -97,9 +104,11 @@ pub struct Manifest {
 
 // ── [app] ────────────────────────────────────────────────────────────────
 
+/// `[app]` section — global identity and watcher defaults.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct AppSection {
+    /// Stable app name used for DNS names, registry keys, and paths.
     pub name: String,
     /// `owner/repo` on GitHub.
     pub repo: String,
@@ -116,10 +125,13 @@ pub struct AppSection {
 
 // ── [container] ──────────────────────────────────────────────────────────
 
+/// `[container]` section — managed LXC template and resource ceilings.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ContainerSection {
+    /// Proxmox LXC template name, e.g. `debian-12-standard`.
     pub template: String,
+    /// CPU core ceiling for the LXC.
     pub cores: u32,
     /// Memory limit in MiB.
     pub memory: u32,
@@ -221,12 +233,16 @@ pub struct Service {
     pub restart: Option<RestartPolicy>,
 }
 
+/// systemd restart policy for generated service units.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum RestartPolicy {
+    /// Always restart after the process exits.
     #[default]
     Always,
+    /// Restart only when the process exits unsuccessfully.
     OnFailure,
+    /// Never restart automatically.
     Never,
 }
 
@@ -237,7 +253,9 @@ pub enum RestartPolicy {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum PortSpec {
+    /// Single port used unchanged inside the LXC/container.
     Single(u16),
+    /// Mapping string, conventionally `"host:container"` for OCI services.
     Mapping(String),
 }
 
@@ -245,6 +263,7 @@ impl PortSpec {
     /// The port number on the container / LXC interior that the service
     /// actually binds to. For mapping strings (`"host:container"`) this
     /// is the part after the colon.
+    #[must_use]
     pub fn container_port(&self) -> Option<u16> {
         match self {
             Self::Single(p) => Some(*p),
@@ -255,6 +274,7 @@ impl PortSpec {
 
 // ── [proxy.<name>] ───────────────────────────────────────────────────────
 
+/// `[proxy.<service>]` route declaration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProxyEntry {
@@ -268,6 +288,7 @@ pub struct ProxyEntry {
 
 // ── [health.<name>] ──────────────────────────────────────────────────────
 
+/// `[health.<service>]` health-check override.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct HealthEntry {
@@ -290,6 +311,7 @@ pub struct HealthEntry {
 
 // ── [sandbox.<name>] ─────────────────────────────────────────────────────
 
+/// `[sandbox.<service>]` systemd sandbox override.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SandboxEntry {

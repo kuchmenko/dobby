@@ -1,0 +1,216 @@
+name: CI Checks
+
+# Reusable workflow. Called by ci.yml on push/PR and intended to be reused
+# by future release/deploy gates so there is one source of truth for checks.
+on:
+  workflow_call:
+    inputs:
+      upload_sarif:
+        description: Upload clippy SARIF to GitHub Code Scanning.
+        required: false
+        type: boolean
+        default: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # No global `RUSTFLAGS: -Dwarnings`: workspace lints intentionally keep
+  # `pedantic = warn`, and the clippy job is the single strict warning gate.
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      # Explicit `+nightly` is load-bearing: rust-toolchain.toml selects
+      # stable, but rustfmt.toml uses nightly-only knobs.
+      - run: cargo +nightly fmt --all --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: clippy-sarif,sarif-fmt
+      - name: Run clippy with SARIF output
+        # `set -eo pipefail` is required because GitHub Actions runs
+        # multi-line `run:` via `bash -e` without pipefail — a non-zero
+        # `cargo clippy` exit would otherwise be masked by `sarif-fmt`
+        # exiting 0.
+        #
+        # `-D warnings` makes the lint contract real. Cognitive complexity
+        # remains a warning so it surfaces in SARIF without blocking.
+        run: |
+          set -eo pipefail
+          cargo clippy --workspace --all-targets --message-format=json -- \
+            -D warnings \
+            --force-warn=clippy::cognitive_complexity \
+            | clippy-sarif \
+            | tee clippy.sarif \
+            | sarif-fmt
+      - name: Render clippy summary
+        if: always()
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [[ ! -f clippy.sarif ]]; then
+            echo "_clippy.sarif was not generated._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 - >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, os, re
+          from collections import defaultdict
+
+          repo = os.environ.get("REPO", "")
+          sha = os.environ.get("SHA", "")
+
+          with open("clippy.sarif") as f:
+              sarif = json.load(f)
+
+          # rule -> {(file, line): value} — dedupes lib + lib-test duplicates
+          seen = defaultdict(dict)
+          for run in sarif.get("runs", []):
+              for r in run.get("results", []):
+                  rule = r.get("ruleId", "") or "(unknown)"
+                  msg = (r.get("message") or {}).get("text", "")
+                  m = re.search(r"\((\d+)/\d+\)", msg)
+                  val = int(m.group(1)) if m else 0
+                  for loc in r.get("locations", []):
+                      phys = loc.get("physicalLocation", {})
+                      art = phys.get("artifactLocation", {}).get("uri", "?")
+                      line = phys.get("region", {}).get("startLine", 0)
+                      seen[rule][(art, line)] = val
+
+          total = sum(len(v) for v in seen.values())
+          print(f"## Clippy complexity findings: **{total}**\n")
+          if not seen:
+              print("_All clean — no complexity warnings._")
+          else:
+              for rule in sorted(seen.keys()):
+                  short = rule.split("::")[-1]
+                  items = sorted(seen[rule].items(), key=lambda kv: -kv[1])
+                  print(f"### `{short}` — {len(items)} findings\n")
+                  print("| File | Line | Value |")
+                  print("|---|---:|---:|")
+                  for (path, line), val in items:
+                      url = f"https://github.com/{repo}/blob/{sha}/{path}#L{line}" if repo and sha else ""
+                      label = f"[`{path}`]({url})" if url else f"`{path}`"
+                      print(f"| {label} | {line} | {val} |")
+                  print()
+          PY
+      - name: Upload SARIF to GitHub Code Scanning
+        # Forked-PR runs receive a read-only GITHUB_TOKEN. The caller computes
+        # upload_sarif from its original event context before entering this
+        # reusable workflow.
+        if: ${{ (success() || failure()) && inputs.upload_sarif }}
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: clippy.sarif
+          wait-for-processing: true
+          category: clippy
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Run tests with coverage
+        run: cargo llvm-cov --workspace --all-targets --lcov --output-path lcov.info
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+
+  buf:
+    name: Buf (lint + breaking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: buf lint
+        run: buf lint
+      - name: buf breaking (against latest tag, if any)
+        run: |
+          if latest_tag=$(git describe --tags --abbrev=0 2>/dev/null); then
+            buf breaking --against ".git#tag=${latest_tag}"
+          else
+            echo "no git tag yet — skipping buf breaking check"
+          fi
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+
+  msrv:
+    name: MSRV (1.88.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +1.88.0 check --workspace
+
+  machete:
+    name: Cargo Machete (unused deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned to commit SHA per GitHub hardening guidance — branch refs
+      # execute whatever upstream HEAD is at run time.
+      - uses: bnjbvr/cargo-machete@7959c845782fed02ee69303126d4a12d64f1db18 # v0.9.1
+
+  typos:
+    name: Typos (spell-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@02ea592e44b3a53c302f697cddca7641cd051c3d # v1.45.0
+
+  udeps:
+    name: Cargo Udeps (nightly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-udeps
+      - run: cargo +nightly udeps --workspace --all-targets

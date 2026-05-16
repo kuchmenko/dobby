@@ -17,6 +17,6 @@ pub struct CheckArgs {
     pub json: bool,
 }
 
-pub async fn run(_args: CheckArgs) -> anyhow::Result<()> {
+pub fn run(_args: CheckArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 2", "dobby check"))
 }

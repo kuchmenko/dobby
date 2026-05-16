@@ -20,6 +20,6 @@ pub struct InitArgs {
     pub vmid: Option<u32>,
 }
 
-pub async fn run(_args: InitArgs) -> anyhow::Result<()> {
+pub fn run(_args: InitArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 2", "dobby init"))
 }

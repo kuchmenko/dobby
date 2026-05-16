@@ -12,6 +12,6 @@ pub struct StatusArgs {
     pub name: Option<String>,
 }
 
-pub async fn run(_args: StatusArgs) -> anyhow::Result<()> {
+pub fn run(_args: StatusArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 1", "dobby status"))
 }

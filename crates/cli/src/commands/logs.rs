@@ -47,6 +47,6 @@ pub struct LogsArgs {
     pub r#type: Option<String>,
 }
 
-pub async fn run(_args: LogsArgs) -> anyhow::Result<()> {
+pub fn run(_args: LogsArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 4", "dobby logs"))
 }

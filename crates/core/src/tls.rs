@@ -63,11 +63,6 @@ pub enum TlsError {
 /// the issue runbook). Adding SANs at init time means the cert doesn't
 /// have to be reissued the first time the CLI pairs from a non-IP
 /// address.
-//
-// `expect_used` is allowed locally for the static IA5 conversions on the
-// SAN list — those operate on string literals known to be ASCII and never
-// fail at runtime. See inline invariant comment.
-#[allow(clippy::expect_used)]
 pub fn generate(keeper_ip: IpAddr) -> Result<TlsArtifacts, TlsError> {
     // ── CA ──────────────────────────────────────────────────────────
     let ca_key = KeyPair::generate()?;
@@ -117,12 +112,10 @@ pub fn generate(keeper_ip: IpAddr) -> Result<TlsArtifacts, TlsError> {
         // reissue later.
         rcgen::ExtendedKeyUsagePurpose::ClientAuth,
     ];
-    // Invariant: both DNS labels are static ASCII and trivially valid IA5 —
-    // `try_from` only fails on non-ASCII or NUL bytes.
     host_params.subject_alt_names = vec![
         SanType::IpAddress(keeper_ip),
-        SanType::DnsName(Ia5String::try_from("localhost".to_owned()).expect("static IA5")),
-        SanType::DnsName(Ia5String::try_from("dobby-keeper".to_owned()).expect("static IA5")),
+        SanType::DnsName(Ia5String::try_from("localhost".to_owned())?),
+        SanType::DnsName(Ia5String::try_from("dobby-keeper".to_owned())?),
     ];
 
     let host_key = KeyPair::generate()?;

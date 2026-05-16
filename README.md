@@ -18,7 +18,8 @@ returns `unimplemented` until its phase lands.
 just --list          # see all dev commands
 just help            # dobby --help, full CLI surface
 just check           # fast compile check across the workspace
-just ci              # everything CI runs (fmt + clippy + check + test + buf)
+just install-dev-tools  # install local Cargo tools used by CI
+just ci                 # everything CI runs (fmt + clippy + coverage + buf + audit + deny + msrv + machete + typos + udeps)
 ```
 
 ## Licence

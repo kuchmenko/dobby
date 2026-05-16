@@ -76,7 +76,7 @@ pub struct GcArgs {
     pub keep: Option<u32>,
 }
 
-pub async fn run(cmd: SecretsCommand) -> anyhow::Result<()> {
+pub fn run(cmd: &SecretsCommand) -> anyhow::Result<()> {
     let phase = "Phase 2";
     match cmd {
         SecretsCommand::Set(_) => Err(not_yet(phase, "dobby secrets set")),

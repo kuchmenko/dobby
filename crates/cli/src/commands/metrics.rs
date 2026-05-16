@@ -10,6 +10,6 @@ pub struct MetricsArgs {
     pub name: Option<String>,
 }
 
-pub async fn run(_args: MetricsArgs) -> anyhow::Result<()> {
+pub fn run(_args: MetricsArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 5", "dobby metrics"))
 }

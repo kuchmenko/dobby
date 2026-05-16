@@ -22,6 +22,6 @@ pub struct ScaleArgs {
     pub disk: Option<u32>,
 }
 
-pub async fn run(_args: ScaleArgs) -> anyhow::Result<()> {
+pub fn run(_args: ScaleArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 3c", "dobby scale"))
 }

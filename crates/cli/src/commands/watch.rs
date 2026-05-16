@@ -20,7 +20,7 @@ pub struct AppArgs {
     pub name: String,
 }
 
-pub async fn run(cmd: WatchCommand) -> anyhow::Result<()> {
+pub fn run(cmd: &WatchCommand) -> anyhow::Result<()> {
     let phase = "Phase 4";
     match cmd {
         WatchCommand::Start(_) => Err(not_yet(phase, "dobby watch start")),

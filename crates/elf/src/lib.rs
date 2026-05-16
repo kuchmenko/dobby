@@ -19,6 +19,6 @@
 /// Binds the mTLS gRPC server on the LXC's `eth0` interface, reads
 /// `/etc/dobby/elf.toml`, requests secrets from Keeper, and waits for
 /// deploy commands.
-pub async fn run() -> anyhow::Result<()> {
+pub fn run() -> anyhow::Result<()> {
     anyhow::bail!("unimplemented: dobby-elf::run lands in Phase 1");
 }

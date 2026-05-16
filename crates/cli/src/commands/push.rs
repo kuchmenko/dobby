@@ -25,6 +25,6 @@ pub struct PushArgs {
     pub service: Option<String>,
 }
 
-pub async fn run(_args: PushArgs) -> anyhow::Result<()> {
+pub fn run(_args: PushArgs) -> anyhow::Result<()> {
     Err(not_yet("Phase 2", "dobby push"))
 }
