@@ -16,7 +16,7 @@ use tracing::{error, info};
 
 use crate::{
     config::{self, ConfigError},
-    services::KeeperServiceImpl,
+    services::{KeeperServiceImpl, ServiceInitError},
     tls::{self, TlsError},
 };
 
@@ -36,6 +36,10 @@ pub enum ServerError {
     /// Couldn't load the host TLS material from `<dir>/tls/`.
     #[error("loading TLS identity: {0}")]
     Tls(#[from] TlsError),
+
+    /// Keeper gRPC service could not initialise from the state dir.
+    #[error("initialising Keeper service: {0}")]
+    Service(#[from] ServiceInitError),
 
     /// Tonic transport-level failure (bind error, TLS setup, …).
     #[error("tonic transport: {0}")]
@@ -62,18 +66,19 @@ pub async fn run(dir: &Path) -> Result<(), ServerError> {
     let bind_addr = SocketAddr::new(cfg.network.keeper_ip, KEEPER_GRPC_PORT);
     info!(target = "dobby_keeper::server", %bind_addr, "starting tonic server");
 
-    serve(bind_addr, tls_config, shutdown_signal()).await
+    serve(bind_addr, tls_config, dir.to_path_buf(), shutdown_signal()).await
 }
 
 /// Inner driver — unit-testable surface that takes its own bind
-/// address, TLS config, and shutdown future. The user-facing `run`
-/// supplies real defaults.
+/// address, TLS config, state dir, and shutdown future. The
+/// user-facing `run` supplies real defaults.
 pub async fn serve(
     bind_addr: SocketAddr,
     tls_config: tonic::transport::ServerTlsConfig,
+    state_dir: std::path::PathBuf,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    let svc = KeeperServiceServer::new(KeeperServiceImpl::new());
+    let svc = KeeperServiceServer::new(KeeperServiceImpl::from_dir(&state_dir)?);
 
     // tonic 0.14: `Server::add_service(&mut self) -> Router` — needs
     // a binding so we can take `&mut`. Subsequent services chain on

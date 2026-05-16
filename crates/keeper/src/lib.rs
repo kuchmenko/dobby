@@ -5,7 +5,8 @@
 //!   - tonic gRPC server bound on `keeper_ip:8443` with the host TLS identity from
 //!     `<dir>/tls/host.{crt,key}`
 //!   - `KeeperService::HealthCheck` returns version + ok status
-//!   - `KeeperService::Pair` is a stub returning `Unimplemented`
+//!   - `KeeperService::Pair` registers the first workstation public key via the one-time bootstrap
+//!     token
 //!   - graceful shutdown on `SIGINT` / `SIGTERM`
 //!
 //! Out of scope here (each lands in its own PR):
@@ -14,7 +15,7 @@
 //!   - reverse proxy
 //!   - `sd_notify(READY=1)` + `WATCHDOG=1` event loop
 //!   - ed25519 signature verification on incoming CLI requests
-//!   - real Pair logic (bootstrap-token verification + workstation pubkey registry)
+//!   - future-RPC Ed25519 signature enforcement after pairing
 
 #![allow(dead_code)] // skeleton stubs filled per phase
 

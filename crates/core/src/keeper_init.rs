@@ -11,8 +11,10 @@
 //! │   ├── ca.key                        (0600)
 //! │   ├── host.crt                      (0644)
 //! │   └── host.key                      (0600)
-//! └── secrets/
-//!     └── bootstrap_token               (0600)
+//! ├── secrets/
+//! │   └── bootstrap_token               (0600, sha256 hash; plaintext printed once)
+//! └── auth/
+//!     └── workstations.toml             (0600, public-key registry)
 //! ```
 //!
 //! The caller passes a fully-specified [`Request`] — there is no
@@ -33,7 +35,7 @@ use std::{
 use zeroize::Zeroizing;
 
 use crate::{
-    bootstrap_token,
+    auth, bootstrap_token,
     keeper_config::{KeeperConfig, Network},
     state::{self, AtomicWriteError},
     tls,
@@ -117,10 +119,18 @@ pub enum InitError {
     #[error("bootstrap token generation: {0}")]
     Token(#[from] bootstrap_token::TokenError),
 
+    /// Bootstrap token hash generation failed.
+    #[error("bootstrap token hash generation: {0}")]
+    TokenHash(#[from] bootstrap_token::TokenFormatError),
+
     /// `keeper.toml` serialisation failed (should be impossible given
     /// the schema — included for totality).
     #[error("serialising keeper.toml: {0}")]
     Serialise(#[from] toml::ser::Error),
+
+    /// Auth registry initialisation failed.
+    #[error("initialising auth registry: {0}")]
+    Auth(#[from] auth::AuthError),
 
     /// Filesystem / atomic-write error.
     #[error(transparent)]
@@ -150,7 +160,8 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
 
     let tls_dir = req.dir.join("tls");
     let secrets_dir = req.dir.join("secrets");
-    for sub in [&tls_dir, &secrets_dir] {
+    let auth_dir = req.dir.join("auth");
+    for sub in [&tls_dir, &secrets_dir, &auth_dir] {
         fs::create_dir_all(sub).map_err(|source| InitError::Io {
             op: "mkdir -p",
             path: sub.clone(),
@@ -174,6 +185,13 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
         InitError::Io {
             op: "chmod 0700",
             path: secrets_dir.clone(),
+            source,
+        }
+    })?;
+    fs::set_permissions(&auth_dir, fs::Permissions::from_mode(0o700)).map_err(|source| {
+        InitError::Io {
+            op: "chmod 0700",
+            path: auth_dir.clone(),
             source,
         }
     })?;
@@ -207,10 +225,20 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
         tls_material.host_key_pem.as_bytes(),
         0o600,
     )?;
+    let token_hash = bootstrap_token::hash_for_storage(&token)?;
     state::atomic_write(
         &secrets_dir.join("bootstrap_token"),
-        token.as_bytes(),
+        token_hash.as_bytes(),
         0o600,
+    )?;
+
+    // Force re-init reissues the bootstrap token, so it must also
+    // clear any previous consumed-token / workstation registry state;
+    // otherwise the freshly printed token could never enroll a
+    // replacement workstation.
+    auth::save_keeper_registry(
+        &auth_dir.join("workstations.toml"),
+        &auth::KeeperAuthRegistry::default(),
     )?;
 
     // Fsync the directory inodes themselves so the newly-renamed
@@ -222,7 +250,7 @@ pub fn init(req: &Request) -> Result<InitOutcome, InitError> {
     // `atomic_write` deliberately doesn't do this per-call (one-off
     // writes to already-fsynced dirs wouldn't benefit) — we do it
     // here, once, for the batch.
-    for d in [&req.dir, &tls_dir, &secrets_dir] {
+    for d in [&req.dir, &tls_dir, &secrets_dir, &auth_dir] {
         fsync_dir(d)?;
     }
 

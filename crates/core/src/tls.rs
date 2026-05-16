@@ -23,8 +23,9 @@
 //! post-move handle to reach into. This is worth revisiting
 //! alongside the privsep work in Phase 5.
 
-use std::net::IpAddr;
+use std::{net::IpAddr, str};
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, Issuer, KeyPair,
     KeyUsagePurpose, SanType, string::Ia5String,
@@ -54,6 +55,81 @@ pub enum TlsError {
     /// Something went wrong inside rcgen.
     #[error("rcgen: {0}")]
     Rcgen(#[from] rcgen::Error),
+    /// Certificate PEM was not valid UTF-8.
+    #[error("certificate PEM is not UTF-8: {0}")]
+    PemUtf8(#[from] str::Utf8Error),
+    /// Certificate PEM did not contain a certificate block.
+    #[error("certificate PEM does not contain a CERTIFICATE block")]
+    MissingCertificateBlock,
+    /// Certificate PEM base64 payload failed to decode.
+    #[error("decoding certificate PEM base64: {0}")]
+    PemBase64(#[from] base64::DecodeError),
+    /// Fingerprint hex was not exactly 32 bytes.
+    #[error("TLS SHA-256 fingerprint must be 64 lowercase hex chars")]
+    InvalidFingerprintHex,
+    /// Fingerprint hex failed to decode.
+    #[error("decoding TLS SHA-256 fingerprint: {0}")]
+    DecodeFingerprint(#[from] const_hex::FromHexError),
+}
+
+/// Compute the lowercase-hex SHA-256 fingerprint of a DER certificate.
+#[must_use]
+pub fn fingerprint_sha256_hex_from_der(cert_der: &[u8]) -> String {
+    const_hex::encode(fingerprint_sha256_bytes_from_der(cert_der))
+}
+
+/// Compute the raw SHA-256 fingerprint bytes of a DER certificate.
+#[must_use]
+pub fn fingerprint_sha256_bytes_from_der(cert_der: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(cert_der);
+    hasher.finalize().into()
+}
+
+/// Compute the lowercase-hex SHA-256 fingerprint of the first
+/// `CERTIFICATE` PEM block in `cert_pem`.
+pub fn fingerprint_sha256_hex_from_pem(cert_pem: &[u8]) -> Result<String, TlsError> {
+    Ok(const_hex::encode(fingerprint_sha256_bytes_from_pem(
+        cert_pem,
+    )?))
+}
+
+/// Compute the raw SHA-256 fingerprint bytes of the first
+/// `CERTIFICATE` PEM block in `cert_pem`.
+pub fn fingerprint_sha256_bytes_from_pem(cert_pem: &[u8]) -> Result<[u8; 32], TlsError> {
+    let der = first_certificate_der_from_pem(cert_pem)?;
+    Ok(fingerprint_sha256_bytes_from_der(&der))
+}
+
+/// Parse a lowercase-hex SHA-256 fingerprint into raw bytes.
+pub fn parse_fingerprint_hex(fingerprint: &str) -> Result<[u8; 32], TlsError> {
+    if fingerprint.len() != 64
+        || !fingerprint
+            .bytes()
+            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+    {
+        return Err(TlsError::InvalidFingerprintHex);
+    }
+    const_hex::decode_to_array(fingerprint).map_err(TlsError::DecodeFingerprint)
+}
+
+fn first_certificate_der_from_pem(cert_pem: &[u8]) -> Result<Vec<u8>, TlsError> {
+    let pem = str::from_utf8(cert_pem)?;
+    let start_marker = "-----BEGIN CERTIFICATE-----";
+    let end_marker = "-----END CERTIFICATE-----";
+    let start = pem
+        .find(start_marker)
+        .ok_or(TlsError::MissingCertificateBlock)?
+        + start_marker.len();
+    let rest = &pem[start..];
+    let end = rest
+        .find(end_marker)
+        .ok_or(TlsError::MissingCertificateBlock)?;
+
+    let base64_payload: String = rest[..end].chars().filter(|c| !c.is_whitespace()).collect();
+    BASE64_STANDARD
+        .decode(base64_payload)
+        .map_err(TlsError::PemBase64)
 }
 
 /// Generate the CA + host cert for a Keeper listening on `keeper_ip`.
@@ -126,10 +202,7 @@ pub fn generate(keeper_ip: IpAddr) -> Result<TlsArtifacts, TlsError> {
     let host_der = host_cert.der().to_vec();
 
     // ── Fingerprint ─────────────────────────────────────────────────
-    let mut hasher = Sha256::new();
-    hasher.update(&host_der);
-    let digest = hasher.finalize();
-    let host_fingerprint_sha256 = const_hex::encode(digest);
+    let host_fingerprint_sha256 = fingerprint_sha256_hex_from_der(&host_der);
 
     Ok(TlsArtifacts {
         ca_cert_pem,

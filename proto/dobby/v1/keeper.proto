@@ -30,6 +30,10 @@ message PairRequest {
   bytes workstation_pubkey = 1;
   // One-time bootstrap token from `dobby keeper init`.
   string bootstrap_token = 2;
+  // SHA-256 fingerprint of the Keeper TLS cert the workstation pinned before this RPC.
+  bytes tls_fingerprint_sha256 = 3;
+  // Ed25519 signature over the deterministic Pair challenge bytes.
+  bytes workstation_signature = 4;
 }
 
 message PairResponse {

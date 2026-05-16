@@ -34,6 +34,7 @@ fn writes_expected_layout() {
         "tls/host.crt",
         "tls/host.key",
         "secrets/bootstrap_token",
+        "auth/workstations.toml",
     ] {
         assert!(
             tmp.path().join(sub).exists(),
@@ -42,14 +43,12 @@ fn writes_expected_layout() {
         );
     }
 
-    // Token round-trips onto disk. `assert_eq!` would print both
-    // sides via Debug on mismatch, leaking secret material into CI
-    // logs; compare with an explicit branch that panics with a
-    // generic message instead.
+    // Disk stores only a hash, not the plaintext token printed once
+    // to the operator.
     let on_disk = fs::read_to_string(tmp.path().join("secrets/bootstrap_token")).unwrap();
+    assert!(on_disk.starts_with(crate::bootstrap_token::TOKEN_HASH_PREFIX));
     assert!(
-        on_disk == **outcome.bootstrap_token,
-        "bootstrap token on disk diverges from value returned by init"
+        crate::bootstrap_token::verify_against_hash(&outcome.bootstrap_token, &on_disk).unwrap()
     );
 }
 
@@ -67,14 +66,16 @@ fn applies_expected_permissions() {
     assert_eq!(mode_of(&tmp.path().join("tls/ca.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("tls/host.key")), 0o600);
     assert_eq!(mode_of(&tmp.path().join("secrets/bootstrap_token")), 0o600);
+    assert_eq!(mode_of(&tmp.path().join("auth/workstations.toml")), 0o600);
 
     // Dir modes — root, tls/ world-traversable so non-root can
-    // reach the public certs; secrets/ owner-only.
+    // reach the public certs; secrets/ and auth/ owner-only.
     // Note: `req(tmp.path())` reuses the pre-existing tempdir as
     // `dir`, so root-dir-mode normalisation doesn't kick in in
     // this test — see `normalises_root_dir_mode_when_creating`.
     assert_eq!(mode_of(&tmp.path().join("tls")), 0o755);
     assert_eq!(mode_of(&tmp.path().join("secrets")), 0o700);
+    assert_eq!(mode_of(&tmp.path().join("auth")), 0o700);
 }
 
 #[test]
@@ -150,6 +151,27 @@ fn overwrites_with_force() {
 }
 
 #[test]
+fn force_reinit_resets_auth_registry_for_new_bootstrap_token() {
+    let tmp = tempfile::tempdir().unwrap();
+    init(&req(tmp.path())).unwrap();
+
+    let registry_path = tmp.path().join("auth/workstations.toml");
+    let keypair = crate::auth::WorkstationKeypair::generate().unwrap();
+    let mut registry = crate::auth::KeeperAuthRegistry::default();
+    registry.add_public_key(&keypair.public_key_bytes());
+    registry.bootstrap_token_consumed = true;
+    crate::auth::save_keeper_registry(&registry_path, &registry).unwrap();
+
+    let mut r = req(tmp.path());
+    r.force = true;
+    init(&r).unwrap();
+
+    let reset = crate::auth::load_keeper_registry(&registry_path).unwrap();
+    assert!(!reset.bootstrap_token_consumed);
+    assert!(reset.workstations.is_empty());
+}
+
+#[test]
 fn creates_missing_dir() {
     let tmp = tempfile::tempdir().unwrap();
     let target = tmp.path().join("nonexistent");
@@ -174,6 +196,10 @@ fn fingerprint_is_reported_and_matches_host_cert() {
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
         "fingerprint must be lowercase hex"
     );
+
+    let host_cert = fs::read(tmp.path().join("tls/host.crt")).unwrap();
+    let from_disk = crate::tls::fingerprint_sha256_hex_from_pem(&host_cert).unwrap();
+    assert_eq!(from_disk, outcome.tls_fingerprint_sha256);
 }
 
 #[test]

@@ -61,7 +61,7 @@ pub enum KeeperCommand {
 
     /// Print the Keeper's TLS cert SHA-256 fingerprint for out-of-band
     /// pairing over an already-authenticated channel.
-    ShowFingerprint,
+    ShowFingerprint(ShowFingerprintArgs),
 
     /// Rotate the Proxmox API token stored under
     /// `/etc/dobby/secrets/_system/proxmox_token.age`.
@@ -132,6 +132,13 @@ pub struct StartArgs {
     pub dir: PathBuf,
 }
 
+#[derive(Debug, Args)]
+pub struct ShowFingerprintArgs {
+    /// State directory written by `dobby keeper init` (must contain `tls/host.crt`).
+    #[arg(long, default_value = "/etc/dobby")]
+    pub dir: PathBuf,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum AuthProvider {
     /// GitHub OAuth Device Flow (required for Release Watcher).
@@ -176,7 +183,7 @@ pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
     match cmd {
         KeeperCommand::Init(args) => run_init(args),
         KeeperCommand::Start(args) => run_start(args).await,
-        KeeperCommand::ShowFingerprint => Err(not_yet("Phase 1", "dobby keeper show-fingerprint")),
+        KeeperCommand::ShowFingerprint(args) => run_show_fingerprint(&args),
         KeeperCommand::SetProxmoxToken => Err(not_yet("Phase 1", "dobby keeper set-proxmox-token")),
         KeeperCommand::Auth(AuthProvider::Github) => {
             Err(not_yet("Phase 1", "dobby keeper auth github"))
@@ -192,6 +199,13 @@ pub async fn run(cmd: KeeperCommand) -> anyhow::Result<()> {
 
 async fn run_start(args: StartArgs) -> anyhow::Result<()> {
     dobby_keeper::run(&args.dir).await?;
+    Ok(())
+}
+
+fn run_show_fingerprint(args: &ShowFingerprintArgs) -> anyhow::Result<()> {
+    let host_cert = std::fs::read(args.dir.join("tls/host.crt"))?;
+    let fingerprint = dobby_core::tls::fingerprint_sha256_hex_from_pem(&host_cert)?;
+    println!("{fingerprint}");
     Ok(())
 }
 
@@ -215,7 +229,7 @@ fn run_init(args: InitArgs) -> anyhow::Result<()> {
 
     let dir = args.dir.display();
     println!("✓ TLS CA + host cert       → {dir}/tls/{{ca,host}}.{{crt,key}}");
-    println!("✓ Bootstrap token          → {dir}/secrets/bootstrap_token");
+    println!("✓ Bootstrap token hash     → {dir}/secrets/bootstrap_token");
     println!("✓ keeper.toml skeleton     → {dir}/keeper.toml");
     println!();
     println!(
